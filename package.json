@@ -1,0 +1,14 @@
+{
+  "name": "aura-multitenant-commerce",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "web": "node web.cjs",
+    "build": "npm run build --prefix frontend",
+    "test": "npm test --prefix backend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
