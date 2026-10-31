@@ -41,6 +41,7 @@ test("support records require a business and an authenticated sender association
 
   assert.equal(conversation.validateSync(), undefined);
   assert.equal(message.validateSync(), undefined);
+  assert.equal(message.readAt, null);
 
   conversation.status = "closed";
   assert.ok(conversation.validateSync().errors.status);
