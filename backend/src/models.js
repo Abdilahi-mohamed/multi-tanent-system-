@@ -2,6 +2,14 @@ import mongoose from "mongoose";
 
 const { Schema, model } = mongoose;
 
+const variantAttributeSchema = new Schema(
+  {
+    name: { type: String, required: true, trim: true, maxlength: 40 },
+    value: { type: String, required: true, trim: true, maxlength: 80 }
+  },
+  { _id: false }
+);
+
 const tenantSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
@@ -44,25 +52,66 @@ const variantSchema = new Schema(
     sku: { type: String, trim: true, default: "" },
     size: { type: String, trim: true, default: "" },
     color: { type: String, trim: true, default: "" },
-    stock: { type: Number, min: 0, required: true }
+    attributes: { type: [variantAttributeSchema], default: [] },
+    stock: { type: Number, min: 0, required: true },
+    price: { type: Number, min: 0, default: null },
+    imageUrl: { type: String, default: "" }
   },
   { _id: true }
 );
 
+const productSectionSchema = new Schema(
+  {
+    tenantId: { type: Schema.Types.ObjectId, ref: "Tenant", required: true, index: true },
+    name: { type: String, required: true, trim: true, maxlength: 80 },
+    description: { type: String, default: "", maxlength: 500 },
+    imageUrl: { type: String, default: "" },
+    displayOrder: { type: Number, default: 0, min: 0 },
+    active: { type: Boolean, default: true }
+  },
+  { timestamps: true }
+);
+productSectionSchema.index({ tenantId: 1, name: 1 }, { unique: true, collation: { locale: "en", strength: 2 } });
+productSectionSchema.index({ tenantId: 1, displayOrder: 1, createdAt: 1 });
+
 const productSchema = new Schema(
   {
     tenantId: { type: Schema.Types.ObjectId, ref: "Tenant", required: true, index: true },
+    sectionId: { type: Schema.Types.ObjectId, ref: "ProductSection", default: null, index: true },
     name: { type: String, required: true, trim: true },
     description: { type: String, default: "" },
     category: { type: String, default: "General" },
     price: { type: Number, required: true, min: 0 },
+    promotionalPrice: { type: Number, min: 0, default: null },
     imageUrl: { type: String, default: "" },
+    images: { type: [String], default: [] },
     status: { type: String, enum: ["active", "archived"], default: "active", index: true },
+    isPublished: { type: Boolean, default: true, index: true },
     variants: { type: [variantSchema], default: [] }
   },
   { timestamps: true }
 );
 productSchema.index({ tenantId: 1, createdAt: -1 });
+productSchema.index({ tenantId: 1, sectionId: 1, status: 1, isPublished: 1 });
+
+const orderItemSchema = new Schema(
+  {
+    productId: { type: Schema.Types.ObjectId, ref: "Product", required: true },
+    variantId: { type: Schema.Types.ObjectId, required: true },
+    name: { type: String, required: true },
+    variant: { type: String, default: "" },
+    variantAttributes: { type: [variantAttributeSchema], default: [] },
+    sku: { type: String, default: "" },
+    size: { type: String, default: "" },
+    color: { type: String, default: "" },
+    sectionName: { type: String, default: "" },
+    quantity: { type: Number, required: true, min: 1 },
+    unitPrice: { type: Number, required: true, min: 0 },
+    lineTotal: { type: Number, min: 0 },
+    imageUrl: { type: String, default: "" }
+  },
+  { _id: false }
+);
 
 const orderSchema = new Schema(
   {
@@ -72,7 +121,9 @@ const orderSchema = new Schema(
     customer: {
       name: { type: String, required: true },
       phone: { type: String, required: true },
+      email: { type: String, default: "" },
       address: { type: String, required: true },
+      location: { type: String, default: "" },
       instructions: { type: String, default: "" }
     },
     item: {
@@ -80,13 +131,22 @@ const orderSchema = new Schema(
       variantId: { type: Schema.Types.ObjectId, required: true },
       name: { type: String, required: true },
       variant: { type: String, default: "" },
+      variantAttributes: { type: [variantAttributeSchema], default: [] },
+      sku: { type: String, default: "" },
+      size: { type: String, default: "" },
+      color: { type: String, default: "" },
+      sectionName: { type: String, default: "" },
       quantity: { type: Number, required: true, min: 1 },
       unitPrice: { type: Number, required: true, min: 0 },
+      lineTotal: { type: Number, min: 0 },
       imageUrl: { type: String, default: "" }
     },
+    items: { type: [orderItemSchema], default: [] },
     subtotal: { type: Number, required: true, min: 0 },
     deliveryFee: { type: Number, default: 0, min: 0 },
+    discount: { type: Number, default: 0, min: 0 },
     total: { type: Number, required: true, min: 0 },
+    paymentMethod: { type: String, enum: ["pay_on_delivery", "mobile_money", "bank_transfer"], default: "pay_on_delivery" },
     paymentStatus: {
       type: String,
       enum: ["pending", "paid", "failed", "refunded"],
@@ -108,8 +168,13 @@ orderSchema.index({ tenantId: 1, createdAt: -1 });
 
 const messageSchema = new Schema(
   {
-    sender: { type: String, enum: ["customer", "merchant"], required: true },
+    sender: { type: String, enum: ["customer", "merchant", "platform_admin"], required: true },
+    senderName: { type: String, trim: true, default: "" },
     body: { type: String, required: true, trim: true, maxlength: 2000 },
+    readAt: { type: Date, default: null },
+    readByCustomerAt: { type: Date, default: null },
+    readByMerchantAt: { type: Date, default: null },
+    readByAdminAt: { type: Date, default: null },
     createdAt: { type: Date, default: Date.now }
   },
   { _id: true }
@@ -121,10 +186,16 @@ const conversationSchema = new Schema(
     orderId: { type: Schema.Types.ObjectId, ref: "Order", required: true, unique: true },
     customerName: { type: String, required: true },
     customerPhone: { type: String, required: true },
+    status: { type: String, enum: ["open", "in_progress", "resolved"], default: "open", index: true },
+    unreadByMerchant: { type: Boolean, default: true },
+    unreadByAdmin: { type: Boolean, default: true },
+    unreadByCustomer: { type: Boolean, default: false },
     messages: { type: [messageSchema], default: [] }
   },
   { timestamps: true }
 );
+conversationSchema.index({ tenantId: 1, unreadByMerchant: 1, updatedAt: -1 });
+conversationSchema.index({ unreadByAdmin: 1, updatedAt: -1 });
 
 const supportConversationSchema = new Schema(
   {
@@ -201,6 +272,7 @@ tenantPaymentProviderSchema.index({ tenantId: 1, provider: 1 }, { unique: true }
 
 export const Tenant = model("Tenant", tenantSchema);
 export const User = model("User", userSchema);
+export const ProductSection = model("ProductSection", productSectionSchema);
 export const Product = model("Product", productSchema);
 export const Order = model("Order", orderSchema);
 export const Conversation = model("Conversation", conversationSchema);

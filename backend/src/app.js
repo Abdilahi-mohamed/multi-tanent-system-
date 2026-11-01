@@ -3,11 +3,12 @@ import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import { z } from "zod";
 import mongoose from "mongoose";
 import { authenticate, createToken, requireRole } from "./auth.js";
 import {
-  AuditLog, Conversation, Order, Product, SupportConversation,
+  AuditLog, Conversation, Order, Product, ProductSection, SupportConversation,
   SupportMessage, Tenant, TenantPaymentProvider, User
 } from "./models.js";
 import { calculateSubtotal } from "./commerce.js";
@@ -42,6 +43,20 @@ const registrationLimiter = rateLimit({
   standardHeaders: "draft-7",
   legacyHeaders: false,
   message: { error: "Too many registration attempts. Try again later." }
+});
+const customerAccessLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many order verification attempts. Try again later." }
+});
+const customerMessageLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 20,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many messages were sent. Wait a moment and try again." }
 });
 const loginSchema = z.object({
   identifier: z.string().trim().min(3).max(254).optional(),
@@ -121,30 +136,89 @@ const productSchema = z.object({
   name: z.string().trim().min(2).max(120),
   description: z.string().trim().max(3000).optional().default(""),
   category: z.string().trim().max(80).optional().default("General"),
+  sectionId: z.string().regex(/^[a-f\d]{24}$/i).nullable().optional().default(null),
   price: z.number().finite().nonnegative(),
+  promotionalPrice: z.number().finite().nonnegative().nullable().optional().default(null),
   imageUrl: z.string().trim().url().max(1000).optional().or(z.literal("")).default(""),
+  images: z.array(z.string().trim().url().max(1000)).max(12).optional().default([]),
+  isPublished: z.boolean().optional().default(true),
   variants: z.array(
     z.object({
+      _id: z.string().regex(/^[a-f\d]{24}$/i).optional(),
       sku: z.string().trim().max(80).optional().default(""),
       size: z.string().trim().max(40).optional().default(""),
       color: z.string().trim().max(40).optional().default(""),
-      stock: z.number().int().nonnegative()
+      attributes: z.array(z.object({
+        name: z.string().trim().min(1).max(40),
+        value: z.string().trim().min(1).max(80)
+      })).max(20).optional().default([]).refine(
+        (attributes) => new Set(attributes.map(({ name }) => name.toLowerCase())).size === attributes.length,
+        "Variant attribute names must be unique."
+      ),
+      stock: z.number().int().nonnegative(),
+      price: z.number().finite().nonnegative().nullable().optional().default(null),
+      imageUrl: z.string().trim().url().max(1000).optional().or(z.literal("")).default("")
     })
   ).min(1).max(100)
 });
-const orderSchema = z.object({
+const productSectionSchema = z.object({
+  name: z.string().trim().min(2).max(80),
+  description: z.string().trim().max(500).optional().default(""),
+  imageUrl: z.string().trim().url().max(1000).optional().or(z.literal("")).default(""),
+  displayOrder: z.number().int().min(0).max(10000).optional().default(0),
+  active: z.boolean().optional().default(true)
+});
+const productUpdateSchema = productSchema.partial().refine((input) => Object.keys(input).length > 0, {
+  message: "Provide at least one product field to update."
+});
+const orderLineSchema = z.object({
   productId: z.string().regex(/^[a-f\d]{24}$/i),
   variantId: z.string().regex(/^[a-f\d]{24}$/i),
-  quantity: z.number().int().min(1).max(50),
+  quantity: z.number().int().min(1).max(50)
+});
+const orderSchema = z.object({
+  items: z.array(orderLineSchema).min(1).max(25).optional(),
+  productId: z.string().regex(/^[a-f\d]{24}$/i).optional(),
+  variantId: z.string().regex(/^[a-f\d]{24}$/i).optional(),
+  quantity: z.number().int().min(1).max(50).optional(),
+  paymentMethod: z.enum(["pay_on_delivery", "mobile_money", "bank_transfer"]).optional().default("pay_on_delivery"),
   customer: z.object({
     name: z.string().trim().min(2).max(120),
     phone: z.string().trim().min(5).max(40),
+    email: z.string().trim().email().max(254).optional().or(z.literal("")).default(""),
     address: z.string().trim().min(5).max(500),
+    location: z.string().trim().max(250).optional().default(""),
     instructions: z.string().trim().max(500).optional().default("")
   })
+}).refine((input) => input.items?.length || (input.productId && input.variantId && input.quantity), {
+  message: "Add at least one valid product option to your order."
+}).refine((input) => {
+  const lines = input.items || [{ productId: input.productId, variantId: input.variantId }];
+  const uniqueLines = new Set(lines.map((line) => `${line.productId}:${line.variantId}`));
+  return uniqueLines.size === lines.length;
+}, { message: "Each product option can appear only once in the order; update its quantity instead." });
+const orderChatAccessSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  phone: z.string().trim().min(5).max(40)
+});
+const orderChatMessageSchema = z.object({
+  body: z.string().trim().min(1).max(2000)
+});
+const orderChatStatusSchema = z.object({
+  status: z.enum(["open", "in_progress", "resolved"])
 });
 const fulfillmentSchema = z.object({
   fulfillmentStatus: z.enum(["processing", "ready", "shipped", "delivered", "cancelled"])
+});
+const orderDeliveryUpdateSchema = z.object({
+  phone: z.string().trim().min(5).max(40).optional(),
+  email: z.string().trim().email().max(254).optional().or(z.literal("")),
+  address: z.string().trim().min(5).max(500).optional(),
+  location: z.string().trim().max(250).optional(),
+  instructions: z.string().trim().max(500).optional(),
+  deliveryFee: z.number().finite().min(0).max(1_000_000_000_000).optional()
+}).refine((input) => Object.keys(input).length > 0, {
+  message: "Provide at least one delivery field to update."
 });
 const paymentActivityQuerySchema = z.object({
   status: z.enum(["all", "pending", "paid", "failed", "refunded"]).optional(),
@@ -195,6 +269,55 @@ function tenantIdFor(user) {
   return tenantIdFromSession(user);
 }
 
+function normalizeCustomerName(value) {
+  return value.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+}
+
+function normalizePhone(value) {
+  return value.replace(/\D/g, "");
+}
+
+function roundCurrency(value) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function createOrderChatToken(conversation) {
+  return jwt.sign({
+    purpose: "order_chat",
+    conversationId: conversation._id.toString(),
+    orderId: conversation.orderId.toString(),
+    tenantId: conversation.tenantId.toString()
+  }, process.env.JWT_SECRET, { expiresIn: "30d" });
+}
+
+async function authenticateOrderCustomer(req, res, next) {
+  const authorization = req.get("authorization") || "";
+  const token = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+  if (!token) return res.status(401).json({ error: "Verify your order details to access this conversation." });
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    if (payload.purpose !== "order_chat" || !mongoose.isValidObjectId(payload.conversationId) || !mongoose.isValidObjectId(payload.orderId) || !mongoose.isValidObjectId(payload.tenantId)) {
+      return res.status(401).json({ error: "Order chat access is invalid. Verify your order again." });
+    }
+    const conversation = await Conversation.findOne({
+      _id: payload.conversationId,
+      orderId: payload.orderId,
+      tenantId: payload.tenantId
+    });
+    if (!conversation) return res.status(404).json({ error: "Order conversation not found." });
+    const order = await Order.findOne({ _id: payload.orderId, tenantId: payload.tenantId }).lean();
+    if (!order) return res.status(404).json({ error: "Order conversation not found." });
+    req.orderConversation = conversation;
+    req.customerOrder = order;
+    return next();
+  } catch (error) {
+    if (error.name === "JsonWebTokenError" || error.name === "TokenExpiredError") {
+      return res.status(401).json({ error: "Order chat access expired. Verify your order details again." });
+    }
+    return next(error);
+  }
+}
+
 async function writeAudit({ actor, action, targetType, targetId, tenantId = null, details = {} }) {
   await AuditLog.create({
     actorId: actor._id,
@@ -214,6 +337,31 @@ async function restoreStockReservation({ productId, tenantId, variantId, quantit
   );
   if (result.matchedCount !== 1) {
     throw new Error("The reserved product variant could not be found during inventory restoration.");
+  }
+}
+
+async function restoreReservations(reservations) {
+  const restored = [];
+  try {
+    for (const reservation of reservations) {
+      await restoreStockReservation(reservation);
+      restored.push(reservation);
+    }
+  } catch (error) {
+    for (const reservation of restored.reverse()) {
+      const rollback = await Product.updateOne(
+        {
+          _id: reservation.productId,
+          tenantId: reservation.tenantId,
+          variants: { $elemMatch: { _id: reservation.variantId, stock: { $gte: reservation.quantity } } }
+        },
+        { $inc: { "variants.$.stock": -reservation.quantity } }
+      );
+      if (rollback.matchedCount !== 1) {
+        throw new Error("Partial stock restoration could not be rolled back safely.", { cause: error });
+      }
+    }
+    throw error;
   }
 }
 
@@ -950,8 +1098,79 @@ api.get("/tenant/products", authenticate, requireRole("business_owner"), async (
   try {
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
-    const items = await Product.find(withTenantScope(req.user)).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean();
+    const filter = withTenantScope(req.user);
+    if (req.query.sectionId) {
+      if (!mongoose.isValidObjectId(req.query.sectionId)) return res.status(400).json({ error: "Invalid product section ID." });
+      filter.sectionId = req.query.sectionId;
+    }
+    const items = await Product.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).populate("sectionId", "name").lean();
     res.json({ items });
+  } catch (error) {
+    next(error);
+  }
+});
+
+api.get("/tenant/sections", authenticate, requireRole("business_owner"), async (req, res, next) => {
+  try {
+    const items = await ProductSection.find(withTenantScope(req.user)).sort({ displayOrder: 1, createdAt: 1 }).lean();
+    res.json({ items });
+  } catch (error) {
+    next(error);
+  }
+});
+
+api.post("/tenant/sections", authenticate, requireRole("business_owner"), async (req, res, next) => {
+  try {
+    const input = parseOrRespond(productSectionSchema, req.body, res);
+    if (!input) return;
+    const tenantId = tenantIdFor(req.user);
+    const duplicate = await ProductSection.findOne({ tenantId, name: input.name }).collation({ locale: "en", strength: 2 }).lean();
+    if (duplicate) return res.status(409).json({ error: "A section with that name already exists." });
+    const section = await ProductSection.create({ ...input, tenantId });
+    await writeAudit({ actor: req.user, action: "product_section.created", targetType: "product_section", targetId: section._id, tenantId });
+    res.status(201).json({ section });
+  } catch (error) {
+    if (error.code === 11000) return res.status(409).json({ error: "A section with that name already exists." });
+    next(error);
+  }
+});
+
+api.patch("/tenant/sections/:id", authenticate, requireRole("business_owner"), async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid product section ID." });
+    const input = parseOrRespond(productSectionSchema.partial().refine((value) => Object.keys(value).length > 0), req.body, res);
+    if (!input) return;
+    const tenantId = tenantIdFor(req.user);
+    if (input.name) {
+      const duplicate = await ProductSection.findOne({ tenantId, _id: { $ne: req.params.id }, name: input.name }).collation({ locale: "en", strength: 2 }).lean();
+      if (duplicate) return res.status(409).json({ error: "A section with that name already exists." });
+    }
+    const section = await ProductSection.findOneAndUpdate(
+      { _id: req.params.id, tenantId },
+      { $set: input },
+      { new: true, runValidators: true }
+    );
+    if (!section) return res.status(404).json({ error: "Product section not found." });
+    await writeAudit({ actor: req.user, action: "product_section.updated", targetType: "product_section", targetId: section._id, tenantId });
+    res.json({ section });
+  } catch (error) {
+    if (error.code === 11000) return res.status(409).json({ error: "A section with that name already exists." });
+    next(error);
+  }
+});
+
+api.delete("/tenant/sections/:id", authenticate, requireRole("business_owner"), async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid product section ID." });
+    const tenantId = tenantIdFor(req.user);
+    const section = await ProductSection.findOne({ _id: req.params.id, tenantId });
+    if (!section) return res.status(404).json({ error: "Product section not found." });
+    if (await Product.exists({ tenantId, sectionId: section._id })) {
+      return res.status(409).json({ error: "Move or archive this section’s products before deleting the section." });
+    }
+    await section.deleteOne();
+    await writeAudit({ actor: req.user, action: "product_section.deleted", targetType: "product_section", targetId: section._id, tenantId });
+    res.json({ message: "Product section deleted." });
   } catch (error) {
     next(error);
   }
@@ -961,7 +1180,19 @@ api.post("/tenant/products", authenticate, requireRole("business_owner"), async 
   try {
     const input = parseOrRespond(productSchema, req.body, res);
     if (!input) return;
-    const product = await Product.create({ ...input, tenantId: tenantIdFor(req.user) });
+    if (input.promotionalPrice !== null && input.promotionalPrice >= input.price) {
+      return res.status(400).json({ error: "Promotional price must be lower than the regular price." });
+    }
+    const tenantId = tenantIdFor(req.user);
+    if (input.sectionId && !await ProductSection.exists({ _id: input.sectionId, tenantId, active: true })) {
+      return res.status(400).json({ error: "Choose an active product section belonging to your business." });
+    }
+    const product = await Product.create({
+      ...input,
+      variants: input.variants.map(({ _id, ...variant }) => variant),
+      imageUrl: input.imageUrl || input.images[0] || "",
+      tenantId
+    });
     await writeAudit({ actor: req.user, action: "product.created", targetType: "product", targetId: product._id, tenantId: product.tenantId });
     res.status(201).json({ product });
   } catch (error) {
@@ -969,6 +1200,53 @@ api.post("/tenant/products", authenticate, requireRole("business_owner"), async 
   }
 });
 
+api.patch("/tenant/products/:id", authenticate, requireRole("business_owner"), async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid product ID." });
+    const input = parseOrRespond(productUpdateSchema, req.body, res);
+    if (!input) return;
+    const tenantId = tenantIdFor(req.user);
+    const existing = await Product.findOne({ _id: req.params.id, tenantId }).select("sectionId price promotionalPrice variants");
+    if (!existing) return res.status(404).json({ error: "Product not found." });
+    const regularPrice = input.price ?? existing.price;
+    const promotionalPrice = Object.hasOwn(input, "promotionalPrice") ? input.promotionalPrice : existing.promotionalPrice;
+    if (promotionalPrice != null && promotionalPrice >= regularPrice) {
+      return res.status(400).json({ error: "Promotional price must be lower than the regular price." });
+    }
+    const sectionId = Object.hasOwn(input, "sectionId") ? input.sectionId : existing.sectionId;
+    const requiresActiveSection = input.isPublished === true || (Object.hasOwn(input, "sectionId") && Boolean(input.sectionId));
+    if (sectionId && requiresActiveSection && !await ProductSection.exists({ _id: sectionId, tenantId, active: true })) {
+      return res.status(400).json({ error: "Choose an active product section belonging to your business." });
+    }
+    if (input.variants) {
+      const currentIds = new Set(existing.variants.map((variant) => String(variant._id)));
+      const incomingIds = new Set();
+      for (const variant of input.variants) {
+        if (variant._id && !currentIds.has(variant._id)) {
+          return res.status(400).json({ error: "A product variant does not belong to this product." });
+        }
+        if (variant._id && incomingIds.has(variant._id)) {
+          return res.status(400).json({ error: "A product variant cannot be included more than once." });
+        }
+        if (variant._id) incomingIds.add(variant._id);
+      }
+      if (existing.variants.some((variant) => !incomingIds.has(String(variant._id)))) {
+        return res.status(409).json({ error: "Saved variants cannot be removed because orders reference them. Set stock to zero or archive the product instead." });
+      }
+    }
+    if (input.images && !Object.hasOwn(input, "imageUrl")) input.imageUrl = input.images[0] || "";
+    const product = await Product.findOneAndUpdate(
+      { _id: req.params.id, tenantId },
+      { $set: input },
+      { new: true, runValidators: true }
+    );
+    if (!product) return res.status(404).json({ error: "Product not found." });
+    await writeAudit({ actor: req.user, action: "product.updated", targetType: "product", targetId: product._id, tenantId });
+    res.json({ product });
+  } catch (error) {
+    next(error);
+  }
+});
 api.patch("/tenant/products/:id/archive", authenticate, requireRole("business_owner"), async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid product ID." });
@@ -1039,6 +1317,9 @@ api.patch("/tenant/orders/:id/fulfillment", authenticate, requireRole("business_
     const tenantId = tenantIdFor(req.user);
     let order = await Order.findOne(withTenantScope(req.user, { _id: req.params.id }));
     if (!order) return res.status(404).json({ error: "Order not found." });
+    if (["cancelled", "delivered"].includes(order.fulfillmentStatus) && input.fulfillmentStatus !== order.fulfillmentStatus) {
+      return res.status(409).json({ error: "Cancelled or delivered orders cannot be reopened or changed." });
+    }
     if (input.fulfillmentStatus === "cancelled") {
       if (["shipped", "delivered"].includes(order.fulfillmentStatus)) {
         return res.status(409).json({ error: "Shipped or delivered orders cannot be cancelled here." });
@@ -1056,16 +1337,14 @@ api.patch("/tenant/orders/:id/fulfillment", authenticate, requireRole("business_
           { new: true }
         );
         if (cancelledOrder) {
-          let restoration;
           try {
-            restoration = await Product.updateOne(
-              {
-                _id: cancelledOrder.item.productId,
-                tenantId,
-                variants: { $elemMatch: { _id: cancelledOrder.item.variantId } }
-              },
-              { $inc: { "variants.$.stock": cancelledOrder.item.quantity } }
-            );
+            const orderItems = cancelledOrder.items?.length ? cancelledOrder.items : [cancelledOrder.item];
+            await restoreReservations(orderItems.map((item) => ({
+              productId: item.productId,
+              tenantId,
+              variantId: item.variantId,
+              quantity: item.quantity
+            })));
           } catch (error) {
             const rollback = await Order.updateOne(
               { _id: cancelledOrder._id, inventoryRestoredAt: cancellationTime },
@@ -1076,17 +1355,6 @@ api.patch("/tenant/orders/:id/fulfillment", authenticate, requireRole("business_
               return res.status(500).json({ error: "Inventory restoration failed and order rollback requires administrator attention." });
             }
             return next(error);
-          }
-          if (restoration.matchedCount !== 1) {
-            const rollback = await Order.updateOne(
-              { _id: cancelledOrder._id, inventoryRestoredAt: cancellationTime },
-              { $set: { fulfillmentStatus: order.fulfillmentStatus }, $unset: { inventoryRestoredAt: 1 } }
-            );
-            if (rollback.matchedCount !== 1) {
-              console.error("Cancellation rollback needs administrator attention.", { orderId: String(cancelledOrder._id) });
-              return res.status(500).json({ error: "Inventory restoration failed and order rollback requires administrator attention." });
-            }
-            return res.status(500).json({ error: "Inventory could not be restored. The cancellation was rolled back." });
           }
           order = cancelledOrder;
         } else {
@@ -1104,6 +1372,39 @@ api.patch("/tenant/orders/:id/fulfillment", authenticate, requireRole("business_
       );
     }
     await writeAudit({ actor: req.user, action: "order.fulfillment_updated", targetType: "order", targetId: order._id, tenantId: order.tenantId, details: input });
+    res.json({ order });
+  } catch (error) {
+    next(error);
+  }
+});
+
+api.patch("/tenant/orders/:id/delivery", authenticate, requireRole("business_owner"), async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid order ID." });
+    const input = parseOrRespond(orderDeliveryUpdateSchema, req.body, res);
+    if (!input) return;
+    const filter = withTenantScope(req.user, { _id: req.params.id });
+    const order = await Order.findOne(filter);
+    if (!order) return res.status(404).json({ error: "Order not found." });
+    if (["shipped", "delivered", "cancelled"].includes(order.fulfillmentStatus)) {
+      return res.status(409).json({ error: "Delivery details cannot be changed after shipment, delivery, or cancellation." });
+    }
+    for (const field of ["phone", "email", "address", "location", "instructions"]) {
+      if (Object.hasOwn(input, field)) order.customer[field] = input[field];
+    }
+    if (Object.hasOwn(input, "deliveryFee")) {
+      order.deliveryFee = input.deliveryFee;
+      order.total = Math.max(0, roundCurrency(order.subtotal + order.deliveryFee - order.discount));
+    }
+    await order.save();
+    await writeAudit({
+      actor: req.user,
+      action: "order.delivery_updated",
+      targetType: "order",
+      targetId: order._id,
+      tenantId: order.tenantId,
+      details: { fields: Object.keys(input) }
+    });
     res.json({ order });
   } catch (error) {
     next(error);
@@ -1320,17 +1621,148 @@ api.get("/tenant/conversations", authenticate, requireRole("business_owner"), as
   }
 });
 
+api.get("/tenant/conversations/:id", authenticate, requireRole("business_owner"), async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid conversation ID." });
+    const conversation = await Conversation.findOneAndUpdate(
+      withTenantScope(req.user, { _id: req.params.id }),
+      { $set: { unreadByMerchant: false } },
+      { new: true }
+    ).populate("orderId").lean();
+    if (!conversation) return res.status(404).json({ error: "Conversation not found." });
+    await Conversation.updateOne(
+      { _id: conversation._id, tenantId: tenantIdFor(req.user) },
+      { $set: { "messages.$[message].readByMerchantAt": new Date() } },
+      { arrayFilters: [{ "message.sender": "customer", "message.readByMerchantAt": null }] }
+    );
+    const updated = await Conversation.findOne(withTenantScope(req.user, { _id: req.params.id })).populate("orderId").lean();
+    res.json({ conversation: updated });
+  } catch (error) {
+    next(error);
+  }
+});
+
 api.post("/tenant/conversations/:id/messages", authenticate, requireRole("business_owner"), async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid conversation ID." });
-    const input = parseOrRespond(z.object({ body: z.string().trim().min(1).max(2000) }), req.body, res);
+    const input = parseOrRespond(orderChatMessageSchema, req.body, res);
     if (!input) return;
     const conversation = await Conversation.findOneAndUpdate(
       withTenantScope(req.user, { _id: req.params.id }),
-      { $push: { messages: { sender: "merchant", body: input.body } } },
+      {
+        $push: { messages: { sender: "merchant", senderName: req.user.name, body: input.body } },
+        $set: { unreadByCustomer: true, unreadByMerchant: false, unreadByAdmin: true }
+      },
       { new: true }
     );
     if (!conversation) return res.status(404).json({ error: "Conversation not found." });
+    res.json({ conversation });
+  } catch (error) {
+    next(error);
+  }
+});
+
+api.patch("/tenant/conversations/:id/status", authenticate, requireRole("business_owner"), async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid conversation ID." });
+    const input = parseOrRespond(orderChatStatusSchema, req.body, res);
+    if (!input) return;
+    const conversation = await Conversation.findOneAndUpdate(
+      withTenantScope(req.user, { _id: req.params.id }),
+      { $set: { status: input.status } },
+      { new: true, runValidators: true }
+    );
+    if (!conversation) return res.status(404).json({ error: "Conversation not found." });
+    res.json({ conversation });
+  } catch (error) {
+    next(error);
+  }
+});
+
+api.get("/admin/order-conversations", authenticate, requireRole("super_admin"), async (req, res, next) => {
+  try {
+    const filter = {};
+    if (["open", "in_progress", "resolved"].includes(req.query.status)) filter.status = req.query.status;
+    const items = await Conversation.find(filter)
+      .sort({ unreadByAdmin: -1, updatedAt: -1 })
+      .limit(100)
+      .populate("tenantId", "name slug")
+      .populate("orderId")
+      .lean();
+    res.json({ items });
+  } catch (error) {
+    next(error);
+  }
+});
+
+api.get("/admin/order-conversations/:id", authenticate, requireRole("super_admin"), async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid conversation ID." });
+    const conversation = await Conversation.findByIdAndUpdate(
+      req.params.id,
+      { $set: { unreadByAdmin: false } },
+      { new: true }
+    ).populate("tenantId", "name slug").populate("orderId").lean();
+    if (!conversation) return res.status(404).json({ error: "Conversation not found." });
+    const messages = await Conversation.updateOne(
+      { _id: conversation._id },
+      { $set: { "messages.$[message].readByAdminAt": new Date() } },
+      { arrayFilters: [{ "message.sender": "customer", "message.readByAdminAt": null }] }
+    );
+    const thread = await Conversation.findById(conversation._id).populate("tenantId", "name slug").populate("orderId").lean();
+    res.json({ conversation: thread, read: messages.modifiedCount > 0 });
+  } catch (error) {
+    next(error);
+  }
+});
+
+api.post("/admin/order-conversations/:id/messages", authenticate, requireRole("super_admin"), async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid conversation ID." });
+    const input = parseOrRespond(orderChatMessageSchema, req.body, res);
+    if (!input) return;
+    const conversation = await Conversation.findOneAndUpdate(
+      { _id: req.params.id },
+      {
+        $push: { messages: { sender: "platform_admin", senderName: req.user.name, body: input.body } },
+        $set: { unreadByCustomer: true, unreadByMerchant: true, unreadByAdmin: false }
+      },
+      { new: true }
+    ).populate("tenantId", "name slug").populate("orderId");
+    if (!conversation) return res.status(404).json({ error: "Conversation not found." });
+    await writeAudit({
+      actor: req.user,
+      action: "order_support.platform_reply",
+      targetType: "order_conversation",
+      targetId: conversation._id,
+      tenantId: conversation.tenantId?._id || conversation.tenantId,
+      details: { orderId: conversation.orderId?._id || conversation.orderId }
+    });
+    res.status(201).json({ conversation });
+  } catch (error) {
+    next(error);
+  }
+});
+
+api.patch("/admin/order-conversations/:id/status", authenticate, requireRole("super_admin"), async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid conversation ID." });
+    const input = parseOrRespond(orderChatStatusSchema, req.body, res);
+    if (!input) return;
+    const conversation = await Conversation.findByIdAndUpdate(
+      req.params.id,
+      { $set: { status: input.status } },
+      { new: true, runValidators: true }
+    );
+    if (!conversation) return res.status(404).json({ error: "Conversation not found." });
+    await writeAudit({
+      actor: req.user,
+      action: "order_support.status_updated",
+      targetType: "order_conversation",
+      targetId: conversation._id,
+      tenantId: conversation.tenantId,
+      details: { status: conversation.status }
+    });
     res.json({ conversation });
   } catch (error) {
     next(error);
@@ -1341,20 +1773,96 @@ api.get("/store/:slug", async (req, res, next) => {
   try {
     const tenant = await Tenant.findOne({ slug: req.params.slug.toLowerCase(), status: "active" }).select("name slug description category");
     if (!tenant) return res.status(404).json({ error: "Store not found." });
-    const products = await Product.find({ tenantId: tenant._id, status: "active" }).sort({ createdAt: -1 }).lean();
-    res.json({ tenant, products });
+    const sections = await ProductSection.find({ tenantId: tenant._id, active: true }).sort({ displayOrder: 1, createdAt: 1 }).lean();
+    const activeSectionIds = sections.map((section) => section._id);
+    const products = await Product.find({
+      tenantId: tenant._id,
+      status: "active",
+      isPublished: { $ne: false },
+      $or: [{ sectionId: null }, { sectionId: { $in: activeSectionIds } }]
+    }).sort({ createdAt: -1 }).lean();
+    res.json({ tenant, sections, products });
+  } catch (error) {
+    next(error);
+  }
+});
+
+api.post("/store/:slug/orders/:orderNumber/chat/access", customerAccessLimiter, async (req, res, next) => {
+  try {
+    const input = parseOrRespond(orderChatAccessSchema, req.body, res);
+    if (!input) return;
+    const tenant = await Tenant.findOne({ slug: req.params.slug.toLowerCase(), status: "active" }).select("_id");
+    if (!tenant) return res.status(404).json({ error: "Store or order not found." });
+    const order = await Order.findOne({
+      tenantId: tenant._id,
+      orderNumber: req.params.orderNumber.trim().toUpperCase()
+    }).select("_id customer.name customer.phone orderNumber total fulfillmentStatus paymentStatus createdAt");
+    if (!order
+      || normalizeCustomerName(order.customer.name) !== normalizeCustomerName(input.name)
+      || normalizePhone(order.customer.phone) !== normalizePhone(input.phone)) {
+      return res.status(404).json({ error: "Order not found. Check the order number, name, and phone number." });
+    }
+    const conversation = await Conversation.findOne({ tenantId: tenant._id, orderId: order._id });
+    if (!conversation) return res.status(404).json({ error: "Customer support is unavailable for this order." });
+    res.json({ accessToken: createOrderChatToken(conversation), order });
+  } catch (error) {
+    next(error);
+  }
+});
+
+api.get("/customer/order-chat", authenticateOrderCustomer, async (req, res, next) => {
+  try {
+    const tenant = await Tenant.exists({ _id: req.customerOrder.tenantId, status: "active" });
+    if (!tenant) return res.status(403).json({ error: "This store is currently unavailable." });
+    const conversation = await Conversation.findOneAndUpdate(
+      { _id: req.orderConversation._id, orderId: req.customerOrder._id, tenantId: req.customerOrder.tenantId },
+      {
+        $set: {
+          unreadByCustomer: false,
+          "messages.$[message].readByCustomerAt": new Date()
+        }
+      },
+      { new: true, arrayFilters: [{ "message.sender": { $ne: "customer" }, "message.readByCustomerAt": null }] }
+    );
+    if (!conversation) return res.status(404).json({ error: "Order conversation not found." });
+    res.json({ conversation, order: req.customerOrder });
+  } catch (error) {
+    next(error);
+  }
+});
+
+api.post("/customer/order-chat/messages", customerMessageLimiter, authenticateOrderCustomer, async (req, res, next) => {
+  try {
+    const input = parseOrRespond(orderChatMessageSchema, req.body, res);
+    if (!input) return;
+    const conversation = await Conversation.findOneAndUpdate(
+      { _id: req.orderConversation._id, orderId: req.customerOrder._id, tenantId: req.customerOrder.tenantId },
+      {
+        $push: { messages: { sender: "customer", senderName: req.customerOrder.customer.name, body: input.body } },
+        $set: { unreadByMerchant: true, unreadByAdmin: true, unreadByCustomer: false, status: "open" }
+      },
+      { new: true }
+    );
+    if (!conversation) return res.status(404).json({ error: "Order conversation not found." });
+    res.status(201).json({ conversation });
   } catch (error) {
     next(error);
   }
 });
 
 api.post("/store/:slug/orders", authLimiter, async (req, res, next) => {
-  let reserved = null;
+  const reservedItems = [];
   let createdOrder = null;
   let input = null;
+  async function rollbackReservations() {
+    if (!reservedItems.length) return;
+    const reservations = reservedItems.splice(0, reservedItems.length);
+    await restoreReservations(reservations);
+  }
   try {
     input = parseOrRespond(orderSchema, req.body, res);
     if (!input) return;
+    const orderLines = input.items || [{ productId: input.productId, variantId: input.variantId, quantity: input.quantity }];
     const key = req.get("Idempotency-Key");
     if (!key || key.length < 12 || key.length > 100) {
       return res.status(400).json({ error: "A valid Idempotency-Key header is required." });
@@ -1362,85 +1870,163 @@ api.post("/store/:slug/orders", authLimiter, async (req, res, next) => {
     const tenant = await Tenant.findOne({ slug: req.params.slug.toLowerCase(), status: "active" }).select("_id");
     if (!tenant) return res.status(404).json({ error: "Store not found." });
     const existing = await Order.findOne({ tenantId: tenant._id, idempotencyKey: key });
-    if (existing) return res.status(200).json({ order: existing, duplicate: true });
+    if (existing) {
+      if (normalizeCustomerName(existing.customer.name) !== normalizeCustomerName(input.customer.name)
+        || normalizePhone(existing.customer.phone) !== normalizePhone(input.customer.phone)) {
+        return res.status(409).json({ error: "This checkout key belongs to a different customer order." });
+      }
+      const conversation = await Conversation.findOne({ tenantId: tenant._id, orderId: existing._id });
+      return res.status(200).json({
+        order: existing,
+        duplicate: true,
+        accessToken: conversation ? createOrderChatToken(conversation) : null
+      });
+    }
 
-    reserved = await Product.findOneAndUpdate(
-      {
-        _id: input.productId,
+    const productIds = [...new Set(orderLines.map((line) => line.productId))];
+    const selectedProducts = await Product.find({
+      _id: { $in: productIds },
+      tenantId: tenant._id,
+      status: "active",
+      isPublished: { $ne: false }
+    }).lean();
+    const productById = new Map(selectedProducts.map((product) => [String(product._id), product]));
+    if (selectedProducts.length !== productIds.length) return res.status(409).json({ error: "One or more products are no longer available." });
+    const sectionIds = [...new Set(selectedProducts.map((product) => product.sectionId).filter(Boolean).map(String))];
+    const activeSections = sectionIds.length
+      ? await ProductSection.find({ _id: { $in: sectionIds }, tenantId: tenant._id, active: true }).select("_id name").lean()
+      : [];
+    const sectionById = new Map(activeSections.map((section) => [String(section._id), section]));
+    for (const product of selectedProducts) {
+      if (product.sectionId && !sectionById.has(String(product.sectionId))) {
+        return res.status(409).json({ error: "One or more product sections are no longer available." });
+      }
+    }
+    for (const line of orderLines) {
+      const product = productById.get(line.productId);
+      if (!product?.variants.some((variant) => String(variant._id) === line.variantId)) {
+        return res.status(409).json({ error: "One or more product options are no longer available." });
+      }
+    }
+
+    const snapshots = [];
+    for (const line of orderLines) {
+      const selectedProduct = productById.get(line.productId);
+      const reserved = await Product.findOneAndUpdate(
+        {
+          _id: line.productId,
+          tenantId: tenant._id,
+          status: "active",
+          isPublished: { $ne: false },
+          sectionId: selectedProduct.sectionId || null,
+          variants: { $elemMatch: { _id: line.variantId, stock: { $gte: line.quantity } } }
+        },
+        { $inc: { "variants.$.stock": -line.quantity } },
+        { new: true }
+      );
+      if (!reserved) {
+        await rollbackReservations();
+        return res.status(409).json({ error: "A selected product option is unavailable or has insufficient stock." });
+      }
+      const variant = reserved.variants.id(line.variantId);
+      const section = reserved.sectionId ? sectionById.get(String(reserved.sectionId)) : null;
+      if (reserved.sectionId && (!section || !await ProductSection.exists({
+        _id: reserved.sectionId,
         tenantId: tenant._id,
-        status: "active",
-        variants: { $elemMatch: { _id: input.variantId, stock: { $gte: input.quantity } } }
-      },
-      { $inc: { "variants.$.stock": -input.quantity } },
-      { new: true }
-    );
-    if (!reserved) return res.status(409).json({ error: "This product option is unavailable or has insufficient stock." });
-    const variant = reserved.variants.id(input.variantId);
-    const subtotal = calculateSubtotal(reserved.price, input.quantity);
+        active: true
+      }))) {
+        reservedItems.push({ productId: reserved._id, tenantId: tenant._id, variantId: variant._id, quantity: line.quantity });
+        await rollbackReservations();
+        return res.status(409).json({ error: "A selected product section is no longer available." });
+      }
+      const regularPrice = variant.price ?? reserved.price;
+      const unitPrice = reserved.promotionalPrice == null ? regularPrice : Math.min(regularPrice, reserved.promotionalPrice);
+      const itemSubtotal = calculateSubtotal(unitPrice, line.quantity);
+      snapshots.push({
+        productId: reserved._id,
+        variantId: variant._id,
+        name: reserved.name,
+        variant: [
+          variant.size,
+          variant.color,
+          ...(variant.attributes || []).map(({ name, value }) => `${name}: ${value}`)
+        ].filter(Boolean).join(" / ") || variant.sku,
+        sku: variant.sku,
+        size: variant.size,
+        color: variant.color,
+        variantAttributes: variant.attributes || [],
+        sectionName: section?.name || reserved.category,
+        quantity: line.quantity,
+        unitPrice,
+        imageUrl: variant.imageUrl || reserved.imageUrl || reserved.images[0] || "",
+        lineTotal: itemSubtotal
+      });
+      reservedItems.push({ productId: reserved._id, tenantId: tenant._id, variantId: variant._id, quantity: line.quantity });
+    }
+
+    const subtotal = roundCurrency(snapshots.reduce((sum, item) => sum + item.lineTotal, 0));
     const orderNumber = `ORD-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
     const order = await Order.create({
       tenantId: tenant._id,
       orderNumber,
       idempotencyKey: key,
       customer: input.customer,
-      item: {
-        productId: reserved._id,
-        variantId: variant._id,
-        name: reserved.name,
-        variant: [variant.size, variant.color].filter(Boolean).join(" / ") || variant.sku,
-        quantity: input.quantity,
-        unitPrice: reserved.price,
-        imageUrl: reserved.imageUrl
-      },
+      item: snapshots[0],
+      items: snapshots,
       subtotal,
       deliveryFee: 0,
+      paymentMethod: input.paymentMethod,
       total: subtotal
     });
     createdOrder = order;
-    await Conversation.create({
+    const conversation = await Conversation.create({
       tenantId: tenant._id,
       orderId: order._id,
       customerName: input.customer.name,
       customerPhone: input.customer.phone,
-      messages: [{ sender: "customer", body: `Order ${orderNumber} placed. Payment is awaiting verification.` }]
+      unreadByMerchant: true,
+      unreadByAdmin: true,
+      messages: [{
+        sender: "customer",
+        senderName: input.customer.name,
+        body: `Order ${orderNumber} placed. Payment is awaiting verification.`
+      }]
     });
-    return res.status(201).json({ order, paymentNotice: "Payment integrations are not configured. This order remains pending payment." });
+    return res.status(201).json({
+      order,
+      accessToken: createOrderChatToken(conversation),
+      paymentNotice: "Payment integrations are not configured. This order remains pending payment."
+    });
   } catch (error) {
-    if (error.code === 11000 && reserved) {
-      const reservedTenantId = reserved.tenantId;
+    if (error.code === 11000 && reservedItems.length) {
+      const reservedTenantId = reservedItems[0].tenantId;
       try {
-        await restoreStockReservation({
-          productId: reserved._id,
-          tenantId: reserved.tenantId,
-          variantId: input.variantId,
-          quantity: input.quantity
-        });
+        await rollbackReservations();
       } catch (rollbackError) {
         logError("Checkout stock rollback failed.", rollbackError);
         return res.status(500).json({ error: "Checkout failed and inventory rollback requires administrator attention." });
       }
-      reserved = null;
       let existing;
       try {
         existing = await Order.findOne({ tenantId: reservedTenantId, idempotencyKey: req.get("Idempotency-Key") });
       } catch (lookupError) {
         return next(lookupError);
       }
-      if (existing) return res.status(200).json({ order: existing, duplicate: true });
+      if (existing) {
+        if (normalizeCustomerName(existing.customer.name) !== normalizeCustomerName(input.customer.name)
+          || normalizePhone(existing.customer.phone) !== normalizePhone(input.customer.phone)) {
+          return res.status(409).json({ error: "This checkout key belongs to a different customer order." });
+        }
+        const conversation = await Conversation.findOne({ tenantId: reservedTenantId, orderId: existing._id });
+        return res.status(200).json({ order: existing, duplicate: true, accessToken: conversation ? createOrderChatToken(conversation) : null });
+      }
     }
     try {
       if (createdOrder) {
         const deletion = await Order.deleteOne({ _id: createdOrder._id, tenantId: createdOrder.tenantId });
         if (deletion.deletedCount !== 1) throw new Error("The failed checkout order could not be removed.");
       }
-      if (reserved && input) {
-        await restoreStockReservation({
-          productId: reserved._id,
-          tenantId: reserved.tenantId,
-          variantId: input.variantId,
-          quantity: input.quantity
-        });
-      }
+      await rollbackReservations();
     } catch (rollbackError) {
       logError("Checkout record or inventory rollback failed.", rollbackError);
       return res.status(500).json({ error: "Checkout failed and inventory rollback requires administrator attention." });

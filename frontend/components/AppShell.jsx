@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Activity, Archive, BarChart3, Bell, Boxes, BriefcaseBusiness, Building2, ChevronDown,
+  Activity, BarChart3, Bell, Boxes, BriefcaseBusiness, Building2, ChevronDown,
   CircleHelp, ClipboardList, CreditCard, Grid2X2, LayoutDashboard, LogOut, MessageSquare,
   Package, Search, Settings, Shield, ShoppingBag, Users, Wallet
 } from "lucide-react";
@@ -15,14 +15,14 @@ const adminSections = [
   { title: "USERS & ACCESS", items: [{ label: "User Management", href: "/super-admin/users", icon: Users }, { label: "Security Logs", href: "/super-admin/audit", icon: Shield }] },
   { title: "PLANS & BILLING", items: [{ label: "Platform Revenue", href: "/super-admin/settings", icon: Wallet }] },
   { title: "COMMERCE MONITORING", items: [{ label: "Payment Management", href: "/super-admin/payments", icon: Boxes }] },
-  { title: "COMMUNICATION", items: [{ label: "Support Inbox", href: "/super-admin/support", icon: CircleHelp }] },
+  { title: "COMMUNICATION", items: [{ label: "Support Inbox", href: "/super-admin/support", icon: CircleHelp }, { label: "Store Customer Support", href: "/super-admin/customer-support", icon: MessageSquare }] },
   { title: "PLATFORM CONFIGURATION", items: [{ label: "Settings", href: "/super-admin/settings", icon: Settings }] }
 ];
 
 const tenantSections = [
   { title: "STORE & OVERVIEW", items: [{ label: "Overview", href: "/dashboard", icon: Grid2X2 }, { label: "Sales Analytics", href: "/dashboard", icon: BarChart3 }] },
-  { title: "CATALOG & STOCK", items: [{ label: "Products & Variants", href: "/dashboard/products", icon: Package }, { label: "Inventory Matrix", href: "/dashboard/products", icon: Boxes }, { label: "Collections", href: "/dashboard/products", icon: Archive }] },
-  { title: "COMMERCE OPERATIONS", items: [{ label: "Orders & Fulfillment", href: "/dashboard/orders", icon: ShoppingBag }, { label: "Customers Directory", href: "/dashboard/orders", icon: Users }] },
+  { title: "CATALOG & STOCK", items: [{ label: "Products & Variants", href: "/dashboard/products", icon: Package }, { label: "Product Sections", href: "/dashboard/sections", icon: Boxes }] },
+  { title: "COMMERCE OPERATIONS", items: [{ label: "Orders & Fulfillment", href: "/dashboard/orders", icon: ShoppingBag }] },
   { title: "COMMUNICATIONS", items: [{ label: "Order Chat", href: "/dashboard/order-chat", icon: MessageSquare }, { label: "Customer Support / Chat", href: "/dashboard/chat", icon: CircleHelp }] },
   { title: "STOREFRONT & SETTINGS", items: [{ label: "Public Storefront", href: "/dashboard/settings", icon: BriefcaseBusiness }, { label: "Payment Gateway", href: "/dashboard/payments", icon: CreditCard }, { label: "Store Settings", href: "/dashboard/settings", icon: Settings }] }
 ];

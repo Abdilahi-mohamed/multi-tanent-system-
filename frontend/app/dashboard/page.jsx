@@ -99,5 +99,5 @@ function InventorySummary() {
   if (!products.length) return <div className="empty-state">Add products with size/color variants to track stock.</div>;
   const rows = products.flatMap((product) => product.variants.map((variant) => ({ product, variant })))
     .sort((a, b) => a.variant.stock - b.variant.stock).slice(0, 4);
-  return <div className="inventory-list">{rows.map(({ product, variant }) => <div className="inventory-row" key={variant._id}><span className="inventory-icon"><PackageCheck size={16} /></span><div><b>{product.name}</b><small>{[variant.size, variant.color].filter(Boolean).join(" · ") || variant.sku}</small></div><strong>{variant.stock} units</strong><StatusPill tone={variant.stock <= 5 ? "warning" : "active"}>{variant.stock <= 5 ? "Low stock" : "Healthy"}</StatusPill></div>)}</div>;
+  return <div className="inventory-list">{rows.map(({ product, variant }) => <div className="inventory-row" key={variant._id}><span className="inventory-icon"><PackageCheck size={16} /></span><div><b>{product.name}</b><small>{[variant.size, variant.color, ...(variant.attributes || []).map(({ name, value }) => `${name}: ${value}`)].filter(Boolean).join(" · ") || variant.sku}</small></div><strong>{variant.stock} units</strong><StatusPill tone={variant.stock <= 5 ? "warning" : "active"}>{variant.stock <= 5 ? "Low stock" : "Healthy"}</StatusPill></div>)}</div>;
 }

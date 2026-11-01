@@ -11,6 +11,9 @@ export async function authenticate(req, res, next) {
 
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
+    if (payload.purpose) {
+      return res.status(401).json({ error: "This token cannot be used for an account session." });
+    }
     const user = await User.findById(payload.sub).lean();
     if (!user || !user.active) {
       return res.status(401).json({ error: "This account is unavailable." });
