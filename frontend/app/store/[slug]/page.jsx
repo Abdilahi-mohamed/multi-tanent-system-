@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, MessageCircle, Search, Send, ShoppingBag, Store, X } from "lucide-react";
 import { api, money } from "../../../lib/api";
+import { StoreSupportChat, StoreSupportNotifications } from "../../../components/StoreSupportChat";
 
 const accessKey = (slug) => `aura-order-chat-${slug}`;
 const chatDate = (value) => new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
@@ -363,9 +364,9 @@ export default function StorefrontPage({ params }) {
   if (!store) return <main className="storefront-page"><div className="screen-message">Loading storefront…</div></main>;
 
   return <main className="storefront-page">
-    <header className="storefront-header"><a href={`/store/${slug}`} className="store-brand"><span className="brand-mark">A</span><span><b>{store.tenant.name}</b><small>{store.tenant.category}</small></span></a><span className="store-secure"><Store size={14} /> Independent storefront</span></header>
+    <header className="storefront-header"><a href={`/store/${slug}`} className="store-brand"><span className="brand-mark">A</span><span><b>{store.tenant.name}</b><small>{store.tenant.category}</small></span></a><div className="storefront-header-actions"><a className="button subtle compact" href="#platform-support"><MessageCircle size={14} /> Customer support</a><StoreSupportNotifications slug={slug} /><span className="store-secure"><Store size={14} /> Independent storefront</span></div></header>
     <section className="store-intro"><p className="eyebrow">WELCOME TO {store.tenant.name.toUpperCase()}</p><h1>{store.tenant.name}</h1><p>{store.tenant.description || "Discover products from this independent business."}</p></section>
-    {order && <section className="order-confirmation"><CheckCircle2 size={30} /><h2>Order received</h2><p>Your order <b>{order.orderNumber}</b> was saved for this store.</p><div className="confirmation-details"><span>Amount</span><b>{money(order.total)}</b><span>Payment</span><b className="warning-text">Pending verification</b></div><p className="footnote">No payment provider is connected. Your order is not marked paid. Use Customer Support below to discuss this order with the business.</p></section>}
+    {order && <section className="order-confirmation"><CheckCircle2 size={30} /><h2>Order received</h2><p>Your order <b>{order.orderNumber}</b> was saved for this store.</p><div className="confirmation-details"><span>Amount</span><b>{money(order.total)}</b><span>Payment</span><b className="warning-text">Pending verification</b></div><p className="footnote">No payment provider is connected. Your order is not marked paid. Use Order Support below to discuss this order with the business.</p></section>}
     <div className="storefront-grid">
       <section>
         <div className="store-section-head"><div><p className="eyebrow">THE COLLECTION</p><h2>Shop products</h2></div><span>{visibleProducts.length} of {store.products.length} items</span></div>
@@ -426,8 +427,9 @@ export default function StorefrontPage({ params }) {
         </form></> : <div className="empty-state">Choose an available product to continue.</div>}
       </section>
     </div>
+    <div id="platform-support"><StoreSupportChat slug={slug} /></div>
     <section className="store-customer-support">
-      <div className="store-support-heading"><div><p className="eyebrow">ORDER SUPPORT</p><h2><MessageCircle size={18} /> Customer Support</h2><p>Support conversations are available only for completed orders.</p></div></div>
+      <div className="store-support-heading"><div><p className="eyebrow">ORDER SUPPORT</p><h2><MessageCircle size={18} /> Order Support</h2><p>Contact the store team about an existing order.</p></div></div>
       {chat ? <div className="store-support-chat">
         <div className="store-support-order"><b>Order {chat.order.orderNumber}</b><span>{chat.order.fulfillmentStatus.replaceAll("_", " ")} · {chat.conversation.status.replaceAll("_", " ")}</span></div>
         <div className="store-support-messages">{chat.conversation.messages.map((message) => <article className={`store-support-message ${message.sender === "customer" ? "from-customer" : "from-business"}`} key={message._id}><p>{message.body}</p><small>{message.senderName || (message.sender === "customer" ? chat.conversation.customerName : message.sender === "platform_admin" ? "Platform support" : store.tenant.name)} · {chatDate(message.createdAt)}{message.sender === "customer" && (message.readByMerchantAt || message.readByAdminAt) ? " · Read" : ""}</small></article>)}</div>

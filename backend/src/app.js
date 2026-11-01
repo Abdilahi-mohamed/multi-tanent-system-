@@ -58,6 +58,13 @@ const customerMessageLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: "Too many messages were sent. Wait a moment and try again." }
 });
+const storeSupportRequestLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 5,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many support requests were sent. Try again later." }
+});
 const loginSchema = z.object({
   identifier: z.string().trim().min(3).max(254).optional(),
   username: z.string().trim().min(3).max(32).regex(/^[a-zA-Z0-9._-]+$/).optional(),
@@ -127,6 +134,11 @@ const supportMessageSchema = z.object({
 });
 const supportConversationSchema = z.object({
   subject: z.string().trim().min(2).max(120),
+  body: z.string().trim().min(1).max(2000)
+});
+const storeSupportRequestSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  email: z.string().trim().email().max(254).transform((email) => email.toLowerCase()),
   body: z.string().trim().min(1).max(2000)
 });
 const supportStatusSchema = z.object({
@@ -290,6 +302,45 @@ function createOrderChatToken(conversation) {
   }, process.env.JWT_SECRET, { expiresIn: "30d" });
 }
 
+function createStoreSupportToken(conversation) {
+  return jwt.sign({
+    purpose: "store_support",
+    conversationId: conversation._id.toString(),
+    tenantId: conversation.tenantId.toString()
+  }, process.env.JWT_SECRET, { expiresIn: "30d" });
+}
+
+async function authenticateStoreSupportCustomer(req, res, next) {
+  const authorization = req.get("authorization") || "";
+  const token = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+  if (!token) return res.status(401).json({ error: "Start a support conversation to continue." });
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    if (payload.purpose !== "store_support"
+      || !mongoose.isValidObjectId(payload.conversationId)
+      || !mongoose.isValidObjectId(payload.tenantId)) {
+      return res.status(401).json({ error: "Store support access is invalid. Start a new conversation." });
+    }
+    const [conversation, tenant] = await Promise.all([
+      SupportConversation.findOne({
+        _id: payload.conversationId,
+        tenantId: payload.tenantId,
+        createdBy: null
+      }),
+      Tenant.exists({ _id: payload.tenantId, status: "active" })
+    ]);
+    if (!conversation) return res.status(404).json({ error: "Store support conversation not found." });
+    if (!tenant) return res.status(403).json({ error: "This store is currently unavailable." });
+    req.storeSupportConversation = conversation;
+    return next();
+  } catch (error) {
+    if (error.name === "JsonWebTokenError" || error.name === "TokenExpiredError") {
+      return res.status(401).json({ error: "Store support access expired. Start a new conversation." });
+    }
+    return next(error);
+  }
+}
+
 async function authenticateOrderCustomer(req, res, next) {
   const authorization = req.get("authorization") || "";
   const token = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
@@ -369,7 +420,7 @@ async function appendSupportMessage(conversation, user, body) {
   const message = await SupportMessage.create({
     conversationId: conversation._id,
     tenantId: conversation.tenantId,
-    senderId: user._id,
+    senderId: user._id || null,
     senderRole: user.role,
     senderName: user.name,
     body
@@ -377,8 +428,9 @@ async function appendSupportMessage(conversation, user, body) {
   const set = {
     lastMessage: message.body,
     lastMessageAt: message.createdAt,
-    unreadByAdmin: user.role === "business_owner",
-    unreadByBusiness: user.role === "super_admin"
+    unreadByAdmin: user.role === "business_owner" || user.role === "store_customer",
+    unreadByBusiness: user.role === "super_admin" && Boolean(conversation.createdBy),
+    unreadByCustomer: user.role === "super_admin" && !conversation.createdBy
   };
   if (conversation.status === "resolved") {
     set.status = user.role === "super_admin" ? "in_progress" : "open";
@@ -1447,7 +1499,7 @@ api.get("/admin/support/conversations/:id", authenticate, requireRole("super_adm
       {
         conversationId: conversation._id,
         tenantId,
-        senderRole: "business_owner",
+        senderRole: { $in: ["business_owner", "store_customer"] },
         readAt: null
       },
       { $set: { readAt: new Date() } }
@@ -1782,6 +1834,87 @@ api.get("/store/:slug", async (req, res, next) => {
       $or: [{ sectionId: null }, { sectionId: { $in: activeSectionIds } }]
     }).sort({ createdAt: -1 }).lean();
     res.json({ tenant, sections, products });
+  } catch (error) {
+    next(error);
+  }
+});
+
+api.post("/store/:slug/support/conversations", storeSupportRequestLimiter, async (req, res, next) => {
+  try {
+    const input = parseOrRespond(storeSupportRequestSchema, req.body, res);
+    if (!input) return;
+    const tenant = await Tenant.findOne({ slug: req.params.slug.toLowerCase(), status: "active" }).select("_id");
+    if (!tenant) return res.status(404).json({ error: "Store not found." });
+    const conversation = await SupportConversation.create({
+      tenantId: tenant._id,
+      customerName: input.name,
+      customerEmail: input.email,
+      subject: "Store customer support",
+      status: "open",
+      lastMessage: input.body,
+      lastMessageAt: new Date(),
+      unreadByAdmin: true
+    });
+    try {
+      const result = await appendSupportMessage(conversation, {
+        role: "store_customer",
+        name: input.name
+      }, input.body);
+      if (!result) throw new Error("Store support conversation could not be saved.");
+      res.status(201).json({
+        ...result,
+        accessToken: createStoreSupportToken(conversation)
+      });
+    } catch (error) {
+      try {
+        await SupportMessage.deleteMany({ conversationId: conversation._id, tenantId: tenant._id });
+        await SupportConversation.deleteOne({ _id: conversation._id, tenantId: tenant._id });
+      } catch (rollbackError) {
+        logError("Store support request rollback failed.", rollbackError);
+        return res.status(500).json({ error: "The support request failed and requires administrator attention." });
+      }
+      throw error;
+    }
+  } catch (error) {
+    next(error);
+  }
+});
+
+api.get("/customer/store-support", authenticateStoreSupportCustomer, async (req, res, next) => {
+  try {
+    const { _id, tenantId } = req.storeSupportConversation;
+    const conversation = await SupportConversation.findOneAndUpdate(
+      { _id, tenantId, createdBy: null },
+      { $set: { unreadByCustomer: false } },
+      { new: true }
+    ).populate("tenantId", "name").lean();
+    if (!conversation) return res.status(404).json({ error: "Store support conversation not found." });
+    await SupportMessage.updateMany(
+      { conversationId: _id, tenantId, senderRole: "super_admin", readAt: null },
+      { $set: { readAt: new Date() } }
+    );
+    const messages = await SupportMessage.find({ conversationId: _id, tenantId }).sort({ createdAt: 1 }).lean();
+    res.json({ conversation, messages });
+  } catch (error) {
+    next(error);
+  }
+});
+
+api.get("/customer/store-support/notifications", authenticateStoreSupportCustomer, (req, res) => {
+  const { unreadByCustomer, lastMessage, lastMessageAt, customerName } = req.storeSupportConversation;
+  res.json({ unread: unreadByCustomer, lastMessage, lastMessageAt, customerName });
+});
+
+api.post("/customer/store-support/messages", customerMessageLimiter, authenticateStoreSupportCustomer, async (req, res, next) => {
+  try {
+    const input = parseOrRespond(supportMessageSchema, req.body, res);
+    if (!input) return;
+    const result = await appendSupportMessage(req.storeSupportConversation, {
+      role: "store_customer",
+      name: req.storeSupportConversation.customerName
+    }, input.body);
+    if (!result) return res.status(404).json({ error: "Store support conversation not found." });
+    res.status(201).json(result);
   } catch (error) {
     next(error);
   }

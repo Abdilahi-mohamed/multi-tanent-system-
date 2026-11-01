@@ -43,9 +43,16 @@ export function SupportChat({ role }) {
       setConversations(result.items);
       setPages(Math.max(result.pages || 1, 1));
       setTotal(result.total || 0);
-      setSelectedId((current) => current && result.items.some((item) => item._id === current)
-        ? current
-        : starting ? "" : result.items[0]?._id || "");
+      const requestedConversationId = new URLSearchParams(window.location.search).get("conversationId");
+      const requestedConversation = requestedConversationId && result.items.some((item) => item._id === requestedConversationId)
+        ? requestedConversationId
+        : "";
+      if (requestedConversation) window.history.replaceState({}, "", window.location.pathname);
+      setSelectedId((current) => {
+        if (requestedConversation) return requestedConversation;
+        if (current && result.items.some((item) => item._id === current)) return current;
+        return starting ? "" : result.items[0]?._id || "";
+      });
       setListError("");
     } catch (reason) {
       setListError(reason.message);
@@ -92,8 +99,8 @@ export function SupportChat({ role }) {
 
   const visible = useMemo(() => conversations.filter((conversation) => {
     const businessName = conversation.tenantId?.name || "";
-    const senderName = conversation.createdBy?.name || "";
-    const matchesSearch = `${businessName} ${senderName} ${conversation.createdBy?.username || ""} ${conversation.subject} ${conversation.lastMessage}`
+    const senderName = conversation.customerName || conversation.createdBy?.name || "";
+    const matchesSearch = `${businessName} ${senderName} ${conversation.customerEmail || ""} ${conversation.createdBy?.username || ""} ${conversation.subject} ${conversation.lastMessage}`
       .toLowerCase().includes(search.trim().toLowerCase());
     return matchesSearch && (statusFilter === "all" || conversation.status === statusFilter);
   }), [conversations, search, statusFilter]);
@@ -178,7 +185,7 @@ export function SupportChat({ role }) {
       eyebrow={isAdmin ? "BUSINESS SUPPORT" : "CUSTOMER SUPPORT"}
       title={title}
       description={isAdmin
-        ? "Read and respond to support requests from registered business accounts."
+        ? "Read and respond to registered business and storefront customer requests."
         : "Send a private support request to the platform team and follow its status."}
       actions={isAdmin
         ? <button className="button subtle compact" onClick={loadConversations}><RefreshCw size={14} /> Refresh</button>
@@ -196,14 +203,18 @@ export function SupportChat({ role }) {
           </div>
           <div className="conversation-list">
             {visible.map((item) => <button type="button" className={`conversation-item ${selectedId === item._id ? "selected" : ""}`} onClick={() => { setStarting(false); setSelectedId(item._id); }} key={item._id}>
-              <span className="avatar conversation-avatar">{initials(isAdmin ? item.tenantId?.name : item.subject)}</span>
+              <span className="avatar conversation-avatar">{initials(isAdmin ? item.customerName || item.tenantId?.name : item.subject)}</span>
               <div>
-                <div className="conversation-meta"><b>{isAdmin ? item.tenantId?.name || "Business" : item.subject}</b><small>{shortDate(item.lastMessageAt)}</small></div>
+                <div className="conversation-meta"><b>{isAdmin ? item.customerName || item.tenantId?.name || "Business" : item.subject}</b><small>{shortDate(item.lastMessageAt)}</small></div>
                 <p>{item.lastMessage}</p>
-                <div className="support-conversation-meta"><small>{isAdmin ? item.createdBy?.name || "Business user" : item.subject}</small><StatusPill tone={item.status}>{statusLabels[item.status] || item.status}</StatusPill>{(isAdmin ? item.unreadByAdmin : item.unreadByBusiness) && <i className="support-unread-dot" aria-label="Unread message" />}</div>
+                <div className="support-conversation-meta"><small>{isAdmin
+                  ? item.customerEmail
+                    ? `${item.customerEmail} · ${item.tenantId?.name || "Store"}`
+                    : item.createdBy?.name || item.tenantId?.name || "Business user"
+                  : item.subject}</small><StatusPill tone={item.status}>{statusLabels[item.status] || item.status}</StatusPill>{(isAdmin ? item.unreadByAdmin : item.unreadByBusiness) && <i className="support-unread-dot" aria-label="Unread message" />}</div>
               </div>
             </button>)}
-            {!visible.length && <div className="empty-state">{loading ? "Loading conversations…" : conversations.length ? "No conversations match these filters." : isAdmin ? "Business support requests will appear here." : "You have no support conversations yet."}</div>}
+            {!visible.length && <div className="empty-state">{loading ? "Loading conversations…" : conversations.length ? "No conversations match these filters." : isAdmin ? "Business and storefront customer requests will appear here." : "You have no support conversations yet."}</div>}
           </div>
           {pages > 1 && <div className="support-pagination"><button className="button subtle compact" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</button><span>Page {page} of {pages}</span><button className="button subtle compact" disabled={page >= pages} onClick={() => setPage(page + 1)}>Next</button></div>}
         </aside>
@@ -219,8 +230,12 @@ export function SupportChat({ role }) {
           </section>
           : conversation ? <section className="chat-thread">
             <header className="thread-header">
-              <span className="avatar">{initials(isAdmin ? conversation.tenantId?.name : conversation.subject)}</span>
-              <div><b>{conversation.subject}</b><small>{isAdmin ? `${conversation.tenantId?.name || "Business"} · ${conversation.createdBy?.name || "Business user"}` : "Platform support"} · Created {shortDate(conversation.createdAt)}</small></div>
+              <span className="avatar">{initials(isAdmin ? conversation.customerName || conversation.tenantId?.name : conversation.subject)}</span>
+              <div><b>{conversation.subject}</b><small>{isAdmin
+                ? conversation.customerName
+                  ? `Store customer · ${conversation.customerEmail}`
+                  : `${conversation.tenantId?.name || "Business"} · ${conversation.createdBy?.name || "Business user"}`
+                : "Platform support"} · Created {shortDate(conversation.createdAt)}</small></div>
               {isAdmin
                 ? <select aria-label="Conversation status" value={conversation.status} disabled={busy} onChange={(event) => updateStatus(event.target.value)}><option value="open">Open</option><option value="in_progress">In progress</option><option value="resolved">Resolved</option></select>
                 : <StatusPill tone={conversation.status}>{statusLabels[conversation.status] || conversation.status}</StatusPill>}
@@ -236,26 +251,28 @@ export function SupportChat({ role }) {
               {!messages.length && !threadError && <div className="empty-state">Loading conversation history…</div>}
             </div>
             <form className="composer" onSubmit={sendMessage}>
-              <input aria-label="Message" value={body} onChange={(event) => setBody(event.target.value)} maxLength={2000} placeholder={isAdmin ? "Reply to this business…" : "Reply to platform support…"} />
+              <input aria-label="Message" value={body} onChange={(event) => setBody(event.target.value)} maxLength={2000} placeholder={isAdmin ? `Reply to ${conversation.customerName || conversation.createdBy?.name || "this business"}…` : "Reply to platform support…"} />
               <button className="button primary" disabled={busy || !body.trim()}><Send size={15} /> Send</button>
             </form>
           </section>
           : <section className="chat-thread chat-empty">{threadError && selectedId && <p className="inline-error" role="alert">{threadError} <button className="text-link" onClick={() => setThreadRetry((current) => current + 1)}>Retry</button></p>}<MessageCircle size={32} /><b>{isAdmin ? "Select a support request" : "Start a support conversation"}</b><p>{isAdmin ? "Choose a business conversation to review its messages and respond." : "Your support history and replies will appear here."}</p>{!isAdmin && <button className="button primary" onClick={() => setStarting(true)}><Plus size={14} /> New conversation</button>}</section>}
         <aside className="customer-dossier support-dossier">
-          <div className="dossier-heading">{isAdmin ? "BUSINESS & SENDER" : "SUPPORT DETAILS"}</div>
+          <div className="dossier-heading">{isAdmin ? conversation?.customerName ? "STORE CUSTOMER" : "BUSINESS & SENDER" : "SUPPORT DETAILS"}</div>
           {conversation ? <>
-            <div className="dossier-profile"><span className="avatar large">{initials(isAdmin ? conversation.tenantId?.name : conversation.createdBy?.name)}</span><div><b>{isAdmin ? conversation.tenantId?.name : conversation.subject}</b><small>{isAdmin ? conversation.createdBy?.name : "Platform support"}</small></div></div>
+            <div className="dossier-profile"><span className="avatar large">{initials(isAdmin ? conversation.customerName || conversation.tenantId?.name : conversation.createdBy?.name)}</span><div><b>{isAdmin ? conversation.customerName || conversation.tenantId?.name : conversation.subject}</b><small>{isAdmin ? conversation.customerEmail || conversation.createdBy?.name : "Platform support"}</small></div></div>
             <div className="dossier-order">
               <h3>Conversation details</h3>
               <div className="dossier-info"><span>Status</span><StatusPill tone={conversation.status}>{statusLabels[conversation.status] || conversation.status}</StatusPill></div>
               <div className="dossier-info"><span>Created</span><b>{shortDate(conversation.createdAt)}</b></div>
               {isAdmin && <>
                 <div className="dossier-info"><span>Business ID</span><b>{String(conversation.tenantId?._id || "")}</b></div>
-                <div className="dossier-info"><span>Sender ID</span><b>{String(conversation.createdBy?._id || "")}</b></div>
-                <div className="dossier-info"><span>Login</span><b>{conversation.createdBy?.username || conversation.createdBy?.email}</b></div>
+                <div className="dossier-info"><span>Sender</span><b>{conversation.customerName || conversation.createdBy?.name || "Business account"}</b></div>
+                {conversation.createdBy && <div className="dossier-info"><span>Login</span><b>{conversation.createdBy.username || conversation.createdBy.email}</b></div>}
               </>}
             </div>
-            <div className="security-note"><ShieldCheck size={16} /><span>This conversation is private to its registered business and the platform support team.</span></div>
+            <div className="security-note"><ShieldCheck size={16} /><span>{conversation.customerName
+              ? "This storefront customer conversation is visible to platform support for this business."
+              : "This conversation is private to its registered business and the platform support team."}</span></div>
           </> : <div className="empty-state">Select a conversation to view its details.</div>}
         </aside>
       </div>}

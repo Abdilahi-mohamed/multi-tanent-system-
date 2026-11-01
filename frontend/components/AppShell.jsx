@@ -116,7 +116,7 @@ export function AppShell({ role, children }) {
           <div className="topbar-actions">
             <label className="global-search"><Search size={15} /><input aria-label="Global search" value={globalSearch} onChange={(event) => setGlobalSearch(event.target.value)} onKeyDown={submitGlobalSearch} placeholder={role === "super_admin" ? "Search businesses…" : "Search orders, SKU, customer"} /><kbd>Enter</kbd></label>
             {role === "tenant" && <a className="button subtle compact" href={`/store/${tenant?.slug || "aura-atelier"}`} target="_blank" rel="noreferrer">View Live Store</a>}
-            <button className="icon-button notification-button" aria-label="Notifications not configured" title="Notifications are not configured" disabled><Bell size={17} /></button>
+            <NotificationCenter role={role} />
             <button className="avatar top-avatar" aria-label="User menu">{user.name?.split(" ").map((part) => part[0]).slice(0, 2).join("")}</button>
           </div>
         </header>
@@ -124,6 +124,103 @@ export function AppShell({ role, children }) {
       </main>
     </div>
   );
+}
+
+function NotificationCenter({ role }) {
+  const router = useRouter();
+  const [notifications, setNotifications] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    const refresh = async () => {
+      try {
+        const [support, orders] = role === "super_admin"
+          ? await Promise.all([
+            api("/admin/support/conversations?page=1&limit=100"),
+            api("/admin/order-conversations")
+          ])
+          : await Promise.all([
+            api("/tenant/support/conversations?page=1&limit=100"),
+            api("/tenant/conversations")
+          ]);
+        if (!active) return;
+        const supportNotifications = support.items
+          .filter((item) => role === "super_admin" ? item.unreadByAdmin : item.unreadByBusiness)
+          .map((item) => ({
+            id: `support:${item._id}`,
+            name: item.customerName || item.createdBy?.name || item.tenantId?.name || "Business support",
+            preview: item.lastMessage,
+            href: role === "super_admin"
+              ? `/super-admin/support?conversationId=${encodeURIComponent(item._id)}`
+              : `/dashboard/support?conversationId=${encodeURIComponent(item._id)}`,
+            timestamp: item.lastMessageAt
+          }));
+        const orderNotifications = orders.items
+          .filter((item) => role === "super_admin" ? item.unreadByAdmin : item.unreadByMerchant)
+          .map((item) => ({
+            id: `order:${item._id}`,
+            name: item.customerName || item.orderId?.customerName || item.orderId?.customer?.name || "Store customer",
+            preview: item.messages?.at(-1)?.body || `New message about order ${item.orderId?.orderNumber || ""}`,
+            href: role === "super_admin"
+              ? `/super-admin/customer-support?orderId=${encodeURIComponent(item.orderId?._id || "")}`
+              : `/dashboard/order-chat?orderId=${encodeURIComponent(item.orderId?._id || "")}`,
+            timestamp: item.updatedAt
+          }));
+        setNotifications([...supportNotifications, ...orderNotifications]
+          .sort((left, right) => new Date(right.timestamp) - new Date(left.timestamp)));
+        setError("");
+      } catch (reason) {
+        if (active) setError(reason.message);
+      }
+    };
+
+    if (role === "super_admin") {
+      refresh();
+      const timer = window.setInterval(refresh, 4000);
+      return () => {
+        active = false;
+        window.clearInterval(timer);
+      };
+    }
+
+    return () => { active = false; };
+  }, [role]);
+
+  const unreadCount = notifications.length;
+  return <div className="notification-wrap">
+    <button
+      className="icon-button notification-button"
+      type="button"
+      aria-label={unreadCount ? `${unreadCount} unread support messages` : "Notifications"}
+      aria-expanded={open}
+      title={unreadCount ? `${unreadCount} unread support messages` : "Notifications"}
+      onClick={() => setOpen((current) => !current)}
+    >
+      <Bell size={17} />
+      {unreadCount > 0 && <span className="notification-count">{unreadCount > 99 ? "99+" : unreadCount}</span>}
+    </button>
+    {open && <div className="notification-popover">
+      <div className="notification-popover-heading"><b>Notifications</b>{unreadCount > 0 && <span>{unreadCount} new</span>}</div>
+      {error && <p className="notification-error" role="alert">{error}</p>}
+      {notifications.length ? notifications.slice(0, 8).map((notification) => <button
+        className="notification-entry"
+        type="button"
+        key={notification.id}
+        onClick={() => {
+          setOpen(false);
+          router.push(notification.href);
+        }}
+      >
+        <span className="notification-entry-icon"><MessageSquare size={15} /></span>
+        <span><b>{notification.name}</b><small>{notification.preview}</small></span>
+        <i />
+      </button>) : !error && <p className="notification-empty">You’re all caught up.</p>}
+      {unreadCount > 8 && <a className="notification-view-all" href="/super-admin/support" onClick={() => setOpen(false)}>View all support messages</a>}
+      {role !== "super_admin" && <a className="notification-view-all" href="/dashboard/support" onClick={() => setOpen(false)}>View support inbox</a>}
+    </div>}
+  </div>;
 }
 
 export function PageHeader({ eyebrow, title, description, actions }) {

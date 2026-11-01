@@ -200,7 +200,9 @@ conversationSchema.index({ unreadByAdmin: 1, updatedAt: -1 });
 const supportConversationSchema = new Schema(
   {
     tenantId: { type: Schema.Types.ObjectId, ref: "Tenant", required: true, index: true },
-    createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    createdBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    customerName: { type: String, trim: true, default: "" },
+    customerEmail: { type: String, lowercase: true, trim: true, default: "" },
     subject: { type: String, required: true, trim: true, maxlength: 120 },
     status: {
       type: String,
@@ -211,7 +213,8 @@ const supportConversationSchema = new Schema(
     lastMessage: { type: String, required: true, maxlength: 2000 },
     lastMessageAt: { type: Date, required: true, default: Date.now },
     unreadByAdmin: { type: Boolean, default: true },
-    unreadByBusiness: { type: Boolean, default: false }
+    unreadByBusiness: { type: Boolean, default: false },
+    unreadByCustomer: { type: Boolean, default: false }
   },
   { timestamps: true }
 );
@@ -222,8 +225,8 @@ const supportMessageSchema = new Schema(
   {
     conversationId: { type: Schema.Types.ObjectId, ref: "SupportConversation", required: true, index: true },
     tenantId: { type: Schema.Types.ObjectId, ref: "Tenant", required: true, index: true },
-    senderId: { type: Schema.Types.ObjectId, ref: "User", required: true },
-    senderRole: { type: String, enum: ["super_admin", "business_owner"], required: true },
+    senderId: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    senderRole: { type: String, enum: ["super_admin", "business_owner", "store_customer"], required: true },
     senderName: { type: String, required: true, trim: true },
     body: { type: String, required: true, trim: true, maxlength: 2000 },
     readAt: { type: Date, default: null }
