@@ -14,6 +14,7 @@ const tenantSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
     slug: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    previousSlugs: { type: [String], default: [] },
     ownerName: { type: String, required: true, trim: true },
     email: { type: String, required: true, lowercase: true, trim: true },
     phone: { type: String, default: "" },
@@ -43,6 +44,18 @@ const userSchema = new Schema(
     role: { type: String, enum: ["super_admin", "business_owner"], required: true },
     tenantId: { type: Schema.Types.ObjectId, ref: "Tenant", default: null, index: true },
     active: { type: Boolean, default: true }
+  },
+  { timestamps: true }
+);
+
+const customerAccountSchema = new Schema(
+  {
+    name: { type: String, required: true, trim: true, maxlength: 120 },
+    email: { type: String, required: true, unique: true, lowercase: true, trim: true, maxlength: 254 },
+    passwordHash: { type: String, select: false, default: "" },
+    googleSub: { type: String, unique: true, sparse: true, select: false },
+    passwordResetTokenHash: { type: String, select: false, default: "" },
+    passwordResetExpiresAt: { type: Date, select: false, default: null }
   },
   { timestamps: true }
 );
@@ -116,6 +129,7 @@ const orderItemSchema = new Schema(
 const orderSchema = new Schema(
   {
     tenantId: { type: Schema.Types.ObjectId, ref: "Tenant", required: true, index: true },
+    customerId: { type: Schema.Types.ObjectId, ref: "CustomerAccount", default: null, index: true, select: false },
     orderNumber: { type: String, required: true, unique: true },
     idempotencyKey: { type: String, required: true },
     customer: {
@@ -275,6 +289,7 @@ tenantPaymentProviderSchema.index({ tenantId: 1, provider: 1 }, { unique: true }
 
 export const Tenant = model("Tenant", tenantSchema);
 export const User = model("User", userSchema);
+export const CustomerAccount = model("CustomerAccount", customerAccountSchema);
 export const ProductSection = model("ProductSection", productSectionSchema);
 export const Product = model("Product", productSchema);
 export const Order = model("Order", orderSchema);

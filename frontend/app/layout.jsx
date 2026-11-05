@@ -1,8 +1,8 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Aura Commerce",
-  description: "Multi-tenant commerce management platform"
+  title: "Vendora",
+  description: "Global multi-vendor commerce platform"
 };
 
 export default function RootLayout({ children }) {

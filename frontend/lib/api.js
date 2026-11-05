@@ -1,5 +1,9 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
+export function apiUrl(path) {
+  return `${API_URL}${path}`;
+}
+
 export function getToken() {
   if (typeof window === "undefined") return null;
   return window.localStorage.getItem("aura-token");
@@ -21,9 +25,10 @@ export async function api(path, options = {}) {
 
   let response;
   try {
-    response = await fetch(`${API_URL}${path}`, {
+    response = await fetch(apiUrl(path), {
       ...options,
       headers,
+      credentials: "include",
       cache: "no-store",
       signal: AbortSignal.timeout(15000)
     });

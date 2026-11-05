@@ -20,6 +20,10 @@ The shared interface follows the requested palette: navy `#0F172A`, blue `#2563E
 4. Create the clearly labelled sample workspace with `npm run seed --prefix backend`.
 5. Start both apps with `npm run dev`. The web client is at `http://localhost:3000`; the API health check is at `http://localhost:4000/api/health`.
 
+Customer accounts use email/password with bcrypt-hashed passwords and HttpOnly session cookies. Configure Google OAuth with `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and the exact callback URI `GOOGLE_OAUTH_REDIRECT_URI` registered in Google Cloud. Password reset links require SMTP settings (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, and optionally `SMTP_FROM`). Keep these credentials only in the backend environment; do not put OAuth secrets or SMTP credentials in frontend variables or source control. Customer orders are account-scoped and remain pending until a payment provider is integrated and verifies payment; the current payment-method choices are manual arrangements only.
+
+The Vendora brand palette is defined for Tailwind in `frontend/tailwind.config.js` and mirrored by the live CSS theme. Example utility combinations include `bg-bg-main text-text-white`, `bg-bg-card-slate border-interaction-border`, `text-brand-primary-blue`, and `bg-brand-accent-gold text-brand-primary-blue hover:bg-interaction-gold-hover`. The dark backdrop uses a radial gradient from slate to charcoal.
+
 The seed command creates:
 
 - Platform admin username: `admin`
