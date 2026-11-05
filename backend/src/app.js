@@ -1,14 +1,17 @@
 import express from "express";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import nodemailer from "nodemailer";
+import { OAuth2Client } from "google-auth-library";
 import { z } from "zod";
 import mongoose from "mongoose";
 import { authenticate, createToken, requireRole } from "./auth.js";
 import {
-  AuditLog, Conversation, Order, Product, ProductSection, SupportConversation,
+  AuditLog, Conversation, CustomerAccount, Order, Product, ProductSection, SupportConversation,
   SupportMessage, Tenant, TenantPaymentProvider, User
 } from "./models.js";
 import { calculateSubtotal } from "./commerce.js";
@@ -24,7 +27,8 @@ app.use(
   cors({
     origin: process.env.CLIENT_ORIGIN || "http://localhost:3000",
     methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key"]
+    allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key"],
+    credentials: true
   })
 );
 app.use(express.json({ limit: "1mb" }));
@@ -58,6 +62,20 @@ const customerMessageLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: "Too many messages were sent. Wait a moment and try again." }
 });
+const customerAuthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many account requests. Try again later." }
+});
+const customerResetLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 5,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many password reset requests. Try again later." }
+});
 const storeSupportRequestLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   limit: 5,
@@ -84,6 +102,31 @@ const bootstrapAdminSchema = z.object({
 const userPasswordSchema = z.object({
   password: z.string().min(12).max(128),
   confirmPassword: z.string().min(12).max(128)
+}).refine((input) => input.password === input.confirmPassword, {
+  path: ["confirmPassword"],
+  message: "Passwords do not match."
+});
+const customerPasswordSchema = z.string().min(12).max(72).refine(
+  (password) => Buffer.byteLength(password, "utf8") <= 72,
+  "Passwords must not exceed 72 UTF-8 bytes."
+);
+const customerRegistrationSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  email: z.string().trim().email().max(254).transform((email) => email.toLowerCase()),
+  password: customerPasswordSchema
+});
+const customerLoginSchema = z.object({
+  email: z.string().trim().email().max(254).transform((email) => email.toLowerCase()),
+  password: z.string().min(1).max(72).refine((password) => Buffer.byteLength(password, "utf8") <= 72)
+});
+const customerForgotPasswordSchema = z.object({
+  email: z.string().trim().email().max(254).transform((email) => email.toLowerCase()),
+  returnTo: z.string().max(1000).optional()
+});
+const customerResetPasswordSchema = z.object({
+  token: z.string().min(32).max(256),
+  password: customerPasswordSchema,
+  confirmPassword: customerPasswordSchema
 }).refine((input) => input.password === input.confirmPassword, {
   path: ["confirmPassword"],
   message: "Passwords do not match."
@@ -281,6 +324,27 @@ function tenantIdFor(user) {
   return tenantIdFromSession(user);
 }
 
+async function findActiveTenantBySlug(slug) {
+  const normalizedSlug = slug.toLowerCase();
+  const currentTenant = await Tenant.findOne({ slug: normalizedSlug, status: "active" }).select("_id name slug description category");
+  if (currentTenant) return currentTenant;
+  return Tenant.findOne({ previousSlugs: normalizedSlug, status: "active" }).select("_id name slug description category");
+}
+
+async function updateTenantDetails(tenant, updates) {
+  if (updates.slug && updates.slug !== tenant.slug) {
+    const conflictingTenant = await Tenant.exists({
+      _id: { $ne: tenant._id },
+      $or: [{ slug: updates.slug }, { previousSlugs: updates.slug }]
+    });
+    if (conflictingTenant) return false;
+    tenant.previousSlugs = [...new Set([...(tenant.previousSlugs || []), tenant.slug])];
+  }
+  Object.assign(tenant, updates);
+  await tenant.save();
+  return true;
+}
+
 function normalizeCustomerName(value) {
   return value.trim().replace(/\s+/g, " ").toLocaleLowerCase();
 }
@@ -293,12 +357,142 @@ function roundCurrency(value) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-function createOrderChatToken(conversation) {
+const customerSessionCookie = "vendora_customer";
+const googleStateCookie = "vendora_google_state";
+const customerSessionMaxAge = 30 * 24 * 60 * 60 * 1000;
+
+function customerCookieOptions(path, maxAge) {
+  const options = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path
+  };
+  if (maxAge !== undefined) options.maxAge = maxAge;
+  return options;
+}
+
+function cookieValue(req, name) {
+  const cookie = (req.get("cookie") || "").split(";").map((part) => part.trim());
+  const entry = cookie.find((part) => part.startsWith(`${name}=`));
+  return entry?.slice(name.length + 1) || "";
+}
+
+function setCustomerSession(res, customer) {
+  const token = jwt.sign({
+    sub: customer._id.toString(),
+    purpose: "customer_session"
+  }, process.env.JWT_SECRET, { expiresIn: "30d" });
+  res.cookie(customerSessionCookie, token, customerCookieOptions("/api/customer", customerSessionMaxAge));
+}
+
+function clearCustomerSession(res) {
+  res.clearCookie(customerSessionCookie, customerCookieOptions("/api/customer"));
+}
+
+async function customerFromRequest(req) {
+  const token = cookieValue(req, customerSessionCookie);
+  if (!token) return null;
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    if (payload.purpose !== "customer_session" || !mongoose.isValidObjectId(payload.sub)) return null;
+    return await CustomerAccount.findById(payload.sub).lean();
+  } catch (error) {
+    if (error.name === "JsonWebTokenError" || error.name === "TokenExpiredError") return null;
+    throw error;
+  }
+}
+
+async function authenticateCustomer(req, res, next) {
+  try {
+    const customer = await customerFromRequest(req);
+    if (!customer) return res.status(401).json({ error: "Sign in with your customer account to continue." });
+    req.customer = customer;
+    return next();
+  } catch (error) {
+    return next(error);
+  }
+}
+
+function hashResetToken(token) {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+function customerReturnPath(value) {
+  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return "/";
+  return value;
+}
+
+function customerReturnUrl(path, key, value) {
+  const url = new URL(customerReturnPath(path), process.env.CLIENT_ORIGIN || "http://localhost:3000");
+  url.searchParams.set(key, value);
+  return url.toString();
+}
+
+function googleOAuthSettings() {
+  return {
+    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    redirectUri: process.env.GOOGLE_OAUTH_REDIRECT_URI
+  };
+}
+
+function customerMailer() {
+  const { SMTP_HOST: host, SMTP_USER: user, SMTP_PASSWORD: pass } = process.env;
+  if (!host || !user || !pass) return null;
+  const port = Number(process.env.SMTP_PORT || 587);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error("SMTP_PORT must be a valid port number.");
+  }
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure: process.env.SMTP_SECURE === "true",
+    auth: { user, pass }
+  });
+}
+
+async function findOrCreateGoogleCustomer(claims) {
+  const email = claims.email.toLowerCase();
+  const [byEmail, byGoogleId] = await Promise.all([
+    CustomerAccount.findOne({ email }).select("+googleSub"),
+    CustomerAccount.findOne({ googleSub: claims.sub }).select("+googleSub")
+  ]);
+  if (byGoogleId && byGoogleId.email !== email) {
+    throw new Error("This Google account is already linked to a different customer email.");
+  }
+  if (byEmail && byGoogleId && !byEmail._id.equals(byGoogleId._id)) {
+    throw new Error("This email is already linked to a different Google account.");
+  }
+  const customer = byEmail || byGoogleId;
+  if (customer) {
+    if (customer.googleSub && customer.googleSub !== claims.sub) {
+      throw new Error("This email is already linked to a different Google account.");
+    }
+    if (!customer.googleSub) {
+      customer.googleSub = claims.sub;
+      await customer.save();
+    }
+    if (customer.name === "Google customer" && claims.name) {
+      customer.name = claims.name.slice(0, 120);
+      await customer.save();
+    }
+    return customer;
+  }
+  return CustomerAccount.create({
+    name: claims.name?.trim().slice(0, 120) || "Google customer",
+    email,
+    googleSub: claims.sub
+  });
+}
+
+function createOrderChatToken(conversation, customerId = null) {
   return jwt.sign({
     purpose: "order_chat",
     conversationId: conversation._id.toString(),
     orderId: conversation.orderId.toString(),
-    tenantId: conversation.tenantId.toString()
+    tenantId: conversation.tenantId.toString(),
+    ...(customerId ? { customerId: customerId.toString() } : {})
   }, process.env.JWT_SECRET, { expiresIn: "30d" });
 }
 
@@ -349,6 +543,12 @@ async function authenticateOrderCustomer(req, res, next) {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
     if (payload.purpose !== "order_chat" || !mongoose.isValidObjectId(payload.conversationId) || !mongoose.isValidObjectId(payload.orderId) || !mongoose.isValidObjectId(payload.tenantId)) {
       return res.status(401).json({ error: "Order chat access is invalid. Verify your order again." });
+    }
+    if (payload.customerId) {
+      const customer = await customerFromRequest(req);
+      if (!customer || !customer._id.equals(payload.customerId)) {
+        return res.status(401).json({ error: "Sign in to the customer account that placed this order." });
+      }
     }
     const conversation = await Conversation.findOne({
       _id: payload.conversationId,
@@ -539,6 +739,228 @@ api.get("/auth/me", authenticate, async (req, res) => {
   });
 });
 
+api.post("/customer/auth/register", registrationLimiter, async (req, res, next) => {
+  try {
+    const input = parseOrRespond(customerRegistrationSchema, req.body, res);
+    if (!input) return;
+    const customer = await CustomerAccount.create({
+      name: input.name,
+      email: input.email,
+      passwordHash: await bcrypt.hash(input.password, 12)
+    });
+    setCustomerSession(res, customer);
+    return res.status(201).json({
+      customer: { id: customer._id, name: customer.name, email: customer.email }
+    });
+  } catch (error) {
+    if (error.code === 11000) return res.status(409).json({ error: "An account with this email already exists. Sign in instead." });
+    return next(error);
+  }
+});
+
+api.post("/customer/auth/login", customerAuthLimiter, async (req, res, next) => {
+  try {
+    const input = parseOrRespond(customerLoginSchema, req.body, res);
+    if (!input) return;
+    const customer = await CustomerAccount.findOne({ email: input.email }).select("+passwordHash");
+    if (!customer?.passwordHash || !(await bcrypt.compare(input.password, customer.passwordHash))) {
+      return res.status(401).json({ error: "Email or password is incorrect." });
+    }
+    setCustomerSession(res, customer);
+    return res.json({
+      customer: { id: customer._id, name: customer.name, email: customer.email }
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+api.post("/customer/auth/logout", (_req, res) => {
+  clearCustomerSession(res);
+  res.json({ message: "Signed out." });
+});
+
+api.get("/customer/auth/me", authenticateCustomer, (req, res) => {
+  res.json({
+    customer: { id: req.customer._id, name: req.customer.name, email: req.customer.email }
+  });
+});
+
+api.post("/customer/auth/forgot-password", customerResetLimiter, async (req, res, next) => {
+  try {
+    const input = parseOrRespond(customerForgotPasswordSchema, req.body, res);
+    if (!input) return;
+    const mailer = customerMailer();
+    if (!mailer) {
+      return res.status(503).json({ error: "Password reset email is not configured. Contact the store administrator." });
+    }
+    const customer = await CustomerAccount.findOne({ email: input.email });
+    if (customer) {
+      const token = randomBytes(32).toString("base64url");
+      customer.passwordResetTokenHash = hashResetToken(token);
+      customer.passwordResetExpiresAt = new Date(Date.now() + 60 * 60 * 1000);
+      await customer.save();
+      const resetUrl = new URL("/customer/reset-password", process.env.CLIENT_ORIGIN || "http://localhost:3000");
+      resetUrl.searchParams.set("token", token);
+      resetUrl.searchParams.set("returnTo", customerReturnPath(input.returnTo));
+      try {
+        await mailer.sendMail({
+          from: process.env.SMTP_FROM || process.env.SMTP_USER,
+          to: customer.email,
+          subject: "Reset your Vendora customer password",
+          text: `Use this link within one hour to reset your password:\n\n${resetUrl.toString()}\n\nIf you did not request this, you can ignore this message.`
+        });
+      } catch (error) {
+        customer.passwordResetTokenHash = "";
+        customer.passwordResetExpiresAt = null;
+        await customer.save();
+        return next(error);
+      }
+    }
+    return res.json({ message: "If an account exists for that email, a password reset link has been sent." });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+api.post("/customer/auth/reset-password", customerResetLimiter, async (req, res, next) => {
+  try {
+    const input = parseOrRespond(customerResetPasswordSchema, req.body, res);
+    if (!input) return;
+    const customer = await CustomerAccount.findOne({
+      passwordResetTokenHash: hashResetToken(input.token),
+      passwordResetExpiresAt: { $gt: new Date() }
+    }).select("+passwordHash +passwordResetTokenHash +passwordResetExpiresAt");
+    if (!customer) return res.status(400).json({ error: "This password reset link is invalid or has expired." });
+    customer.passwordHash = await bcrypt.hash(input.password, 12);
+    customer.passwordResetTokenHash = "";
+    customer.passwordResetExpiresAt = null;
+    await customer.save();
+    clearCustomerSession(res);
+    return res.json({ message: "Your password was reset. Sign in with your new password." });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+api.get("/customer/auth/google", (req, res) => {
+  const returnTo = customerReturnPath(req.query.returnTo);
+  const { clientId, clientSecret, redirectUri } = googleOAuthSettings();
+  if (!clientId || !clientSecret || !redirectUri) {
+    return res.redirect(customerReturnUrl(returnTo, "customerAuthError", "google_not_configured"));
+  }
+  const state = randomBytes(32).toString("base64url");
+  const nonce = randomBytes(32).toString("base64url");
+  const stateToken = jwt.sign({
+    purpose: "customer_google_state",
+    state,
+    nonce,
+    returnTo
+  }, process.env.JWT_SECRET, { expiresIn: "10m" });
+  res.cookie(googleStateCookie, stateToken, customerCookieOptions("/api/customer/auth/google", 10 * 60 * 1000));
+  const authorizationUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+  authorizationUrl.search = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: "code",
+    scope: "openid email profile",
+    state,
+    nonce,
+    prompt: "select_account"
+  }).toString();
+  return res.redirect(authorizationUrl.toString());
+});
+
+api.get("/customer/auth/google/callback", async (req, res, next) => {
+  const stateToken = cookieValue(req, googleStateCookie);
+  res.clearCookie(googleStateCookie, customerCookieOptions("/api/customer/auth/google"));
+  let statePayload;
+  try {
+    statePayload = jwt.verify(stateToken, process.env.JWT_SECRET);
+  } catch {
+    return res.status(400).json({ error: "Google sign-in expired or could not be verified. Please try again." });
+  }
+  const suppliedState = typeof req.query.state === "string" ? req.query.state : "";
+  if (statePayload.purpose !== "customer_google_state"
+    || !suppliedState
+    || Buffer.byteLength(suppliedState) !== Buffer.byteLength(statePayload.state)
+    || !timingSafeEqual(Buffer.from(suppliedState), Buffer.from(statePayload.state))) {
+    return res.status(400).json({ error: "Google sign-in state could not be verified. Please try again." });
+  }
+  const returnTo = customerReturnPath(statePayload.returnTo);
+  const { clientId, clientSecret, redirectUri } = googleOAuthSettings();
+  if (typeof req.query.code !== "string" || !clientId || !clientSecret || !redirectUri) {
+    return res.redirect(customerReturnUrl(returnTo, "customerAuthError", "google_failed"));
+  }
+  try {
+    const oauthClient = new OAuth2Client(clientId, clientSecret, redirectUri);
+    const { tokens } = await oauthClient.getToken(req.query.code);
+    if (typeof tokens.id_token !== "string") {
+      return res.redirect(customerReturnUrl(returnTo, "customerAuthError", "google_failed"));
+    }
+    const ticket = await oauthClient.verifyIdToken({
+      idToken: tokens.id_token,
+      audience: clientId
+    });
+    const claims = ticket.getPayload();
+    if (!claims) return res.redirect(customerReturnUrl(returnTo, "customerAuthError", "google_failed"));
+    const issuedAt = Number(claims.iat);
+    const expiresAt = Number(claims.exp);
+    if (claims.aud !== clientId
+      || !["accounts.google.com", "https://accounts.google.com"].includes(claims.iss)
+      || !(claims.email_verified === true || claims.email_verified === "true")
+      || typeof claims.sub !== "string"
+      || typeof claims.email !== "string"
+      || claims.nonce !== statePayload.nonce
+      || !Number.isFinite(issuedAt)
+      || !Number.isFinite(expiresAt)
+      || issuedAt > Date.now() / 1000 + 60
+      || expiresAt <= Date.now() / 1000) {
+      return res.redirect(customerReturnUrl(returnTo, "customerAuthError", "google_failed"));
+    }
+    let customer;
+    try {
+      customer = await findOrCreateGoogleCustomer(claims);
+    } catch (error) {
+      if (error.code === 11000 || error.message.includes("already linked")) {
+        return res.redirect(customerReturnUrl(returnTo, "customerAuthError", "google_account_conflict"));
+      }
+      throw error;
+    }
+    setCustomerSession(res, customer);
+    const destination = returnTo === "/" ? "/customer/orders" : returnTo;
+    return res.redirect(new URL(destination, process.env.CLIENT_ORIGIN || "http://localhost:3000").toString());
+  } catch (error) {
+    return next(error);
+  }
+});
+
+api.get("/customer/orders", authenticateCustomer, async (req, res, next) => {
+  try {
+    const orders = await Order.find({ customerId: req.customer._id })
+      .sort({ createdAt: -1 })
+      .populate("tenantId", "name slug")
+      .lean();
+    return res.json({ orders });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+api.get("/customer/orders/:orderId", authenticateCustomer, async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.orderId)) return res.status(400).json({ error: "Invalid order ID." });
+    const order = await Order.findOne({
+      _id: req.params.orderId,
+      customerId: req.customer._id
+    }).populate("tenantId", "name slug").lean();
+    if (!order) return res.status(404).json({ error: "Order not found." });
+    return res.json({ order });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 api.get("/admin/overview", authenticate, requireRole("super_admin"), async (_req, res, next) => {
   try {
     const [totalBusinesses, activeBusinesses, pendingBusinesses, suspendedBusinesses, users, orders, paid] =
@@ -598,6 +1020,9 @@ api.post("/admin/businesses", authenticate, requireRole("super_admin"), async (r
   try {
     const input = parseOrRespond(companyAccountSchema, req.body, res);
     if (!input) return;
+    if (await Tenant.exists({ previousSlugs: input.slug })) {
+      return res.status(409).json({ error: "That store address is already in use." });
+    }
     tenant = await Tenant.create({
       name: input.name,
       slug: input.slug,
@@ -695,9 +1120,9 @@ api.patch("/admin/users/:id", authenticate, requireRole("super_admin"), async (r
     if (input.business) {
       tenant = await Tenant.findById(nextTenantId);
       if (!tenant) return res.status(404).json({ error: "The user's business could not be found." });
-      previousTenant = Object.fromEntries(Object.keys(input.business).map((field) => [field, tenant[field]]));
-      Object.assign(tenant, input.business);
-      await tenant.save();
+      previousTenant = Object.fromEntries([...Object.keys(input.business), "previousSlugs"].map((field) => [field, tenant[field]]));
+      const updated = await updateTenantDetails(tenant, input.business);
+      if (!updated) return res.status(409).json({ error: "That store address is already in use." });
     }
     if (input.name !== undefined) user.name = input.name;
     if (input.username !== undefined) {
@@ -743,8 +1168,11 @@ api.patch("/admin/businesses/:id", authenticate, requireRole("super_admin"), asy
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid business ID." });
     const input = parseOrRespond(companySchema.partial().refine((value) => Object.keys(value).length > 0), req.body, res);
     if (!input) return;
-    const tenant = await Tenant.findByIdAndUpdate(req.params.id, input, { new: true, runValidators: true });
+    const tenant = await Tenant.findById(req.params.id);
     if (!tenant) return res.status(404).json({ error: "Business not found." });
+    if (!await updateTenantDetails(tenant, input)) {
+      return res.status(409).json({ error: "That store address is already in use." });
+    }
     await writeAudit({
       actor: req.user,
       action: "business.updated",
@@ -1821,9 +2249,9 @@ api.patch("/admin/order-conversations/:id/status", authenticate, requireRole("su
   }
 });
 
-api.get("/store/:slug", async (req, res, next) => {
+api.get("/store/:slug", authenticateCustomer, async (req, res, next) => {
   try {
-    const tenant = await Tenant.findOne({ slug: req.params.slug.toLowerCase(), status: "active" }).select("name slug description category");
+    const tenant = await findActiveTenantBySlug(req.params.slug);
     if (!tenant) return res.status(404).json({ error: "Store not found." });
     const sections = await ProductSection.find({ tenantId: tenant._id, active: true }).sort({ displayOrder: 1, createdAt: 1 }).lean();
     const activeSectionIds = sections.map((section) => section._id);
@@ -1833,7 +2261,7 @@ api.get("/store/:slug", async (req, res, next) => {
       isPublished: { $ne: false },
       $or: [{ sectionId: null }, { sectionId: { $in: activeSectionIds } }]
     }).sort({ createdAt: -1 }).lean();
-    res.json({ tenant, sections, products });
+    res.json({ tenant, canonicalSlug: tenant.slug, sections, products });
   } catch (error) {
     next(error);
   }
@@ -1843,7 +2271,7 @@ api.post("/store/:slug/support/conversations", storeSupportRequestLimiter, async
   try {
     const input = parseOrRespond(storeSupportRequestSchema, req.body, res);
     if (!input) return;
-    const tenant = await Tenant.findOne({ slug: req.params.slug.toLowerCase(), status: "active" }).select("_id");
+    const tenant = await findActiveTenantBySlug(req.params.slug);
     if (!tenant) return res.status(404).json({ error: "Store not found." });
     const conversation = await SupportConversation.create({
       tenantId: tenant._id,
@@ -1924,20 +2352,26 @@ api.post("/store/:slug/orders/:orderNumber/chat/access", customerAccessLimiter, 
   try {
     const input = parseOrRespond(orderChatAccessSchema, req.body, res);
     if (!input) return;
-    const tenant = await Tenant.findOne({ slug: req.params.slug.toLowerCase(), status: "active" }).select("_id");
+    const tenant = await findActiveTenantBySlug(req.params.slug);
     if (!tenant) return res.status(404).json({ error: "Store or order not found." });
     const order = await Order.findOne({
       tenantId: tenant._id,
       orderNumber: req.params.orderNumber.trim().toUpperCase()
-    }).select("_id customer.name customer.phone orderNumber total fulfillmentStatus paymentStatus createdAt");
+    }).select("_id +customerId customer.name customer.phone orderNumber total fulfillmentStatus paymentStatus createdAt");
     if (!order
       || normalizeCustomerName(order.customer.name) !== normalizeCustomerName(input.name)
       || normalizePhone(order.customer.phone) !== normalizePhone(input.phone)) {
       return res.status(404).json({ error: "Order not found. Check the order number, name, and phone number." });
     }
+    if (order.customerId) {
+      const customer = await customerFromRequest(req);
+      if (!customer || !customer._id.equals(order.customerId)) {
+        return res.status(401).json({ error: "Sign in to the customer account that placed this order." });
+      }
+    }
     const conversation = await Conversation.findOne({ tenantId: tenant._id, orderId: order._id });
     if (!conversation) return res.status(404).json({ error: "Customer support is unavailable for this order." });
-    res.json({ accessToken: createOrderChatToken(conversation), order });
+    res.json({ accessToken: createOrderChatToken(conversation, order.customerId), order });
   } catch (error) {
     next(error);
   }
@@ -1983,7 +2417,7 @@ api.post("/customer/order-chat/messages", customerMessageLimiter, authenticateOr
   }
 });
 
-api.post("/store/:slug/orders", authLimiter, async (req, res, next) => {
+api.post("/store/:slug/orders", authLimiter, authenticateCustomer, async (req, res, next) => {
   const reservedItems = [];
   let createdOrder = null;
   let input = null;
@@ -2000,10 +2434,13 @@ api.post("/store/:slug/orders", authLimiter, async (req, res, next) => {
     if (!key || key.length < 12 || key.length > 100) {
       return res.status(400).json({ error: "A valid Idempotency-Key header is required." });
     }
-    const tenant = await Tenant.findOne({ slug: req.params.slug.toLowerCase(), status: "active" }).select("_id");
+    const tenant = await findActiveTenantBySlug(req.params.slug);
     if (!tenant) return res.status(404).json({ error: "Store not found." });
-    const existing = await Order.findOne({ tenantId: tenant._id, idempotencyKey: key });
+    const existing = await Order.findOne({ tenantId: tenant._id, idempotencyKey: key }).select("+customerId");
     if (existing) {
+      if (!existing.customerId?.equals(req.customer._id)) {
+        return res.status(409).json({ error: "This checkout key belongs to a different customer order." });
+      }
       if (normalizeCustomerName(existing.customer.name) !== normalizeCustomerName(input.customer.name)
         || normalizePhone(existing.customer.phone) !== normalizePhone(input.customer.phone)) {
         return res.status(409).json({ error: "This checkout key belongs to a different customer order." });
@@ -2012,7 +2449,7 @@ api.post("/store/:slug/orders", authLimiter, async (req, res, next) => {
       return res.status(200).json({
         order: existing,
         duplicate: true,
-        accessToken: conversation ? createOrderChatToken(conversation) : null
+        accessToken: conversation ? createOrderChatToken(conversation, req.customer._id) : null
       });
     }
 
@@ -2101,9 +2538,10 @@ api.post("/store/:slug/orders", authLimiter, async (req, res, next) => {
     const orderNumber = `ORD-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
     const order = await Order.create({
       tenantId: tenant._id,
+      customerId: req.customer._id,
       orderNumber,
       idempotencyKey: key,
-      customer: input.customer,
+      customer: { ...input.customer, email: req.customer.email },
       item: snapshots[0],
       items: snapshots,
       subtotal,
@@ -2127,7 +2565,7 @@ api.post("/store/:slug/orders", authLimiter, async (req, res, next) => {
     });
     return res.status(201).json({
       order,
-      accessToken: createOrderChatToken(conversation),
+      accessToken: createOrderChatToken(conversation, req.customer._id),
       paymentNotice: "Payment integrations are not configured. This order remains pending payment."
     });
   } catch (error) {
@@ -2141,17 +2579,20 @@ api.post("/store/:slug/orders", authLimiter, async (req, res, next) => {
       }
       let existing;
       try {
-        existing = await Order.findOne({ tenantId: reservedTenantId, idempotencyKey: req.get("Idempotency-Key") });
+        existing = await Order.findOne({ tenantId: reservedTenantId, idempotencyKey: req.get("Idempotency-Key") }).select("+customerId");
       } catch (lookupError) {
         return next(lookupError);
       }
       if (existing) {
+        if (!existing.customerId?.equals(req.customer._id)) {
+          return res.status(409).json({ error: "This checkout key belongs to a different customer order." });
+        }
         if (normalizeCustomerName(existing.customer.name) !== normalizeCustomerName(input.customer.name)
           || normalizePhone(existing.customer.phone) !== normalizePhone(input.customer.phone)) {
           return res.status(409).json({ error: "This checkout key belongs to a different customer order." });
         }
         const conversation = await Conversation.findOne({ tenantId: reservedTenantId, orderId: existing._id });
-        return res.status(200).json({ order: existing, duplicate: true, accessToken: conversation ? createOrderChatToken(conversation) : null });
+        return res.status(200).json({ order: existing, duplicate: true, accessToken: conversation ? createOrderChatToken(conversation, req.customer._id) : null });
       }
     }
     try {

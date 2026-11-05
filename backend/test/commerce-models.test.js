@@ -1,7 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import mongoose from "mongoose";
-import { Conversation, Order, Product, ProductSection } from "../src/models.js";
+import { Conversation, CustomerAccount, Order, Product, ProductSection } from "../src/models.js";
+
+test("customer accounts are unique by email and keep password hashes out of normal queries", () => {
+  const customer = new CustomerAccount({
+    name: "Store Customer",
+    email: "CUSTOMER@example.com",
+    passwordHash: "bcrypt-hash"
+  });
+
+  assert.equal(customer.validateSync(), undefined);
+  assert.equal(customer.email, "customer@example.com");
+  assert.equal(CustomerAccount.schema.path("email").options.unique, true);
+  assert.equal(CustomerAccount.schema.path("passwordHash").options.select, false);
+  assert.equal(CustomerAccount.schema.path("googleSub").options.select, false);
+});
 
 test("product sections and their dynamic variants validate with tenant associations", () => {
   const tenantId = new mongoose.Types.ObjectId();
@@ -38,8 +52,10 @@ test("orders preserve customer delivery and exact purchased variant snapshots", 
   const variantId = new mongoose.Types.ObjectId();
   const secondProductId = new mongoose.Types.ObjectId();
   const secondVariantId = new mongoose.Types.ObjectId();
+  const customerId = new mongoose.Types.ObjectId();
   const order = new Order({
     tenantId,
+    customerId,
     orderNumber: "ORD-TEST-1",
     idempotencyKey: "test-idempotency-key",
     customer: { name: "Store Customer", phone: "+123456789", email: "customer@example.com", address: "12 Main Street" },
@@ -98,6 +114,8 @@ test("orders preserve customer delivery and exact purchased variant snapshots", 
   assert.equal(order.items.length, 2);
   assert.equal(order.total, 66);
   assert.equal(order.paymentStatus, "pending");
+  assert.equal(String(order.customerId), String(customerId));
+  assert.equal(Order.schema.path("customerId").options.select, false);
 });
 
 test("order support conversations retain tenant/order ownership and message read state", () => {

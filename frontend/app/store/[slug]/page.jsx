@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { CheckCircle2, MessageCircle, Search, Send, ShoppingBag, Store, X } from "lucide-react";
-import { api, money } from "../../../lib/api";
+import { api, apiUrl, money } from "../../../lib/api";
 import { StoreSupportChat, StoreSupportNotifications } from "../../../components/StoreSupportChat";
 
 const accessKey = (slug) => `aura-order-chat-${slug}`;
+const cartKey = (slug) => `vendora-store-cart-${slug}`;
 const chatDate = (value) => new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 
 function attributesForVariant(variant) {
@@ -37,7 +39,16 @@ export default function StorefrontPage({ params }) {
   const [catalogSearch, setCatalogSearch] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [cart, setCart] = useState([]);
+  const [cartReady, setCartReady] = useState(false);
   const [customer, setCustomer] = useState({ name: "", phone: "", email: "", address: "", location: "", instructions: "" });
+  const [customerAccount, setCustomerAccount] = useState(null);
+  const [authMode, setAuthMode] = useState("login");
+  const [authName, setAuthName] = useState("");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [authMessage, setAuthMessage] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("pay_on_delivery");
   const [busy, setBusy] = useState(false);
   const [order, setOrder] = useState(null);
@@ -52,6 +63,18 @@ export default function StorefrontPage({ params }) {
   const storeLoaded = useRef(false);
 
   useEffect(() => { Promise.resolve(params).then((value) => setSlug(value.slug)); }, [params]);
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    if (query.get("checkout") === "1") setAuthMode("login");
+    const googleError = query.get("customerAuthError");
+    if (googleError === "google_not_configured") {
+      setAuthError("Google sign-in is not configured for this store yet.");
+    } else if (googleError === "google_account_conflict") {
+      setAuthError("This Google account conflicts with an existing customer account. Sign in with email or contact support.");
+    } else if (googleError) {
+      setAuthError("Google sign-in could not be completed. Please try again.");
+    }
+  }, []);
   const loadOrderChat = useCallback(async (token) => {
     const result = await api("/customer/order-chat", { headers: { Authorization: `Bearer ${token}` } });
     setChat(result);
@@ -61,6 +84,14 @@ export default function StorefrontPage({ params }) {
   const refreshStorefront = useCallback(async (isCurrent) => {
     const result = await api(`/store/${encodeURIComponent(slug)}`);
     if (!isCurrent()) return;
+    if (result.canonicalSlug && result.canonicalSlug !== slug) {
+      const savedCart = window.sessionStorage.getItem(cartKey(slug));
+      if (savedCart) window.sessionStorage.setItem(cartKey(result.canonicalSlug), savedCart);
+      const savedChatAccess = window.localStorage.getItem(accessKey(slug));
+      if (savedChatAccess) window.localStorage.setItem(accessKey(result.canonicalSlug), savedChatAccess);
+      window.location.replace(`/store/${encodeURIComponent(result.canonicalSlug)}${window.location.search}${window.location.hash}`);
+      return;
+    }
     storeLoaded.current = true;
     setStore(result);
     setProductId((current) => result.products.some((item) => item._id === current)
@@ -75,6 +106,9 @@ export default function StorefrontPage({ params }) {
   useEffect(() => {
     if (!slug) return;
     let active = true;
+    let timer;
+    let loadStore;
+    let onVisibilityChange;
     storeLoaded.current = false;
     setStore(null);
     setError("");
@@ -82,49 +116,91 @@ export default function StorefrontPage({ params }) {
     setProductId("");
     setVariantId("");
     setCart([]);
+    setCartReady(false);
     setOrder(null);
     setChatToken("");
     setChat(null);
     setChatError("");
     setCustomer({ name: "", phone: "", email: "", address: "", location: "", instructions: "" });
-    idempotencyKey.current = "";
-    const loadStore = async () => {
-      try {
-        await refreshStorefront(() => active);
+    api("/customer/auth/me")
+      .then((result) => {
         if (!active) return;
-        setError("");
-      } catch (reason) {
-        if (active && !storeLoaded.current) setError(reason.message);
-      }
-    };
-    loadStore();
-    const timer = window.setInterval(loadStore, 15000);
-    window.addEventListener("focus", loadStore);
-    const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") loadStore();
-    };
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    const saved = window.localStorage.getItem(accessKey(slug));
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.accessToken) {
-          setChatToken(parsed.accessToken);
-          loadOrderChat(parsed.accessToken).catch(() => {
-            if (active) setChatError("Order chat access expired. Verify your order details to continue.");
-          });
+        setCustomerAccount(result.customer);
+        setCustomer((current) => ({
+          ...current,
+          name: current.name || result.customer.name,
+          email: result.customer.email
+        }));
+        const savedCart = window.sessionStorage.getItem(cartKey(slug));
+        if (savedCart) {
+          try {
+            const parsedCart = JSON.parse(savedCart);
+            setCart(Array.isArray(parsedCart) ? parsedCart : []);
+          } catch {
+            window.sessionStorage.removeItem(cartKey(slug));
+          }
         }
-      } catch {
-        window.localStorage.removeItem(accessKey(slug));
-      }
-    }
+        setCartReady(true);
+        idempotencyKey.current = "";
+        loadStore = async () => {
+          try {
+            await refreshStorefront(() => active);
+            if (!active) return;
+            setError("");
+          } catch (reason) {
+            if (active && reason.status === 401) {
+              const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+              window.location.replace(`/customer/login?returnTo=${encodeURIComponent(returnTo)}`);
+            } else if (active && !storeLoaded.current) {
+              setError(reason.message);
+            }
+          }
+        };
+        loadStore();
+        timer = window.setInterval(loadStore, 5000);
+        window.addEventListener("focus", loadStore);
+        onVisibilityChange = () => {
+          if (document.visibilityState === "visible") loadStore();
+        };
+        document.addEventListener("visibilitychange", onVisibilityChange);
+        const saved = window.localStorage.getItem(accessKey(slug));
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (parsed.accessToken) {
+              setChatToken(parsed.accessToken);
+              loadOrderChat(parsed.accessToken).catch(() => {
+                if (active) setChatError("Order chat access expired. Verify your order details to continue.");
+              });
+            }
+          } catch {
+            window.localStorage.removeItem(accessKey(slug));
+          }
+        }
+      })
+      .catch((reason) => {
+        if (!active) return;
+        if (reason.status === 401) {
+          const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+          window.location.replace(`/customer/login?returnTo=${encodeURIComponent(returnTo)}`);
+        } else {
+          setAuthError(reason.message);
+          setError(reason.message);
+        }
+      });
     return () => {
       active = false;
-      window.clearInterval(timer);
-      window.removeEventListener("focus", loadStore);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
+      if (timer) window.clearInterval(timer);
+      if (loadStore) window.removeEventListener("focus", loadStore);
+      if (onVisibilityChange) document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [slug, loadOrderChat, refreshStorefront]);
+
+  useEffect(() => {
+    if (!slug || !cartReady) return;
+    if (cart.length) window.sessionStorage.setItem(cartKey(slug), JSON.stringify(cart));
+    else window.sessionStorage.removeItem(cartKey(slug));
+  }, [cart, cartReady, slug]);
 
   useEffect(() => {
     if (!store) return;
@@ -285,10 +361,77 @@ export default function StorefrontPage({ params }) {
     setCart((current) => current.filter((entry) => entry !== line));
   }
 
+  async function submitCustomerAuth() {
+    setAuthBusy(true);
+    setAuthError("");
+    setAuthMessage("");
+    try {
+      const path = authMode === "register" ? "/customer/auth/register" : "/customer/auth/login";
+      const body = authMode === "register"
+        ? { name: authName, email: authEmail, password: authPassword }
+        : { email: authEmail, password: authPassword };
+      const result = await api(path, { method: "POST", body: JSON.stringify(body) });
+      setCustomerAccount(result.customer);
+      setCustomer((current) => ({
+        ...current,
+        name: current.name || result.customer.name,
+        email: result.customer.email
+      }));
+      setAuthPassword("");
+      setAuthError("");
+      setAuthMessage(authMode === "register" ? "Your account is ready. Add your delivery details to continue." : "Signed in. Add your delivery details to continue.");
+    } catch (reason) {
+      setAuthError(reason.message);
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function requestPasswordReset() {
+    setAuthBusy(true);
+    setAuthError("");
+    setAuthMessage("");
+    try {
+      const result = await api("/customer/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify({ email: authEmail, returnTo: `${window.location.pathname}${window.location.search}` })
+      });
+      setAuthMessage(result.message);
+    } catch (reason) {
+      setAuthError(reason.message);
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  function continueWithGoogle() {
+    if (cart.length) window.sessionStorage.setItem(cartKey(slug), JSON.stringify(cart));
+    const returnTo = `/store/${encodeURIComponent(slug)}?checkout=1`;
+    window.location.assign(apiUrl(`/customer/auth/google?returnTo=${encodeURIComponent(returnTo)}`));
+  }
+
+  async function signOutCustomer() {
+    setAuthBusy(true);
+    setAuthError("");
+    try {
+      await api("/customer/auth/logout", { method: "POST" });
+      setCustomerAccount(null);
+      window.location.assign(`/customer/login?returnTo=${encodeURIComponent(`/store/${slug}`)}`);
+    } catch (reason) {
+      setAuthError(reason.message);
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
   async function submitOrder(event) {
     event.preventDefault();
     if (!cart.length) {
       setOrderError("Add at least one product option to your cart before placing the order.");
+      return;
+    }
+    if (!customerAccount) {
+      setOrderError("Sign in or create a customer account before placing your order.");
       return;
     }
     setBusy(true);
@@ -314,6 +457,10 @@ export default function StorefrontPage({ params }) {
         }
       }
     } catch (reason) {
+      if (reason.status === 401) {
+        setCustomerAccount(null);
+        setAuthError(reason.message);
+      }
       setOrderError(reason.message);
     } finally {
       setBusy(false);
@@ -364,9 +511,9 @@ export default function StorefrontPage({ params }) {
   if (!store) return <main className="storefront-page"><div className="screen-message">Loading storefront…</div></main>;
 
   return <main className="storefront-page">
-    <header className="storefront-header"><a href={`/store/${slug}`} className="store-brand"><span className="brand-mark">A</span><span><b>{store.tenant.name}</b><small>{store.tenant.category}</small></span></a><div className="storefront-header-actions"><a className="button subtle compact" href="#platform-support"><MessageCircle size={14} /> Customer support</a><StoreSupportNotifications slug={slug} /><span className="store-secure"><Store size={14} /> Independent storefront</span></div></header>
+    <header className="storefront-header"><a href={`/store/${slug}`} className="store-brand"><span className="brand-mark"><Image src="/vendora-mark.png" alt="" width={36} height={36} /></span><span><b>{store.tenant.name}</b><small>{store.tenant.category}</small></span></a><div className="storefront-header-actions">{customerAccount && <><a className="store-customer-name" href="/customer/orders">{customerAccount.name} · My orders</a><button type="button" className="button subtle compact" onClick={signOutCustomer} disabled={authBusy}>Sign out</button></>}<a className="button subtle compact" href="#platform-support"><MessageCircle size={14} /> Customer support</a><StoreSupportNotifications slug={slug} /><span className="store-secure"><Store size={14} /> Independent storefront</span></div></header>
     <section className="store-intro"><p className="eyebrow">WELCOME TO {store.tenant.name.toUpperCase()}</p><h1>{store.tenant.name}</h1><p>{store.tenant.description || "Discover products from this independent business."}</p></section>
-    {order && <section className="order-confirmation"><CheckCircle2 size={30} /><h2>Order received</h2><p>Your order <b>{order.orderNumber}</b> was saved for this store.</p><div className="confirmation-details"><span>Amount</span><b>{money(order.total)}</b><span>Payment</span><b className="warning-text">Pending verification</b></div><p className="footnote">No payment provider is connected. Your order is not marked paid. Use Order Support below to discuss this order with the business.</p></section>}
+    {order && <section className="order-confirmation"><CheckCircle2 size={30} /><h2>Order received</h2><p>Your order <b>{order.orderNumber}</b> was saved for this store.</p><div className="confirmation-details"><span>Amount</span><b>{money(order.total)}</b><span>Payment</span><b className="warning-text">Pending verification</b></div><p className="footnote">No payment provider is connected. Your order is not marked paid. Use Order Support below to discuss this order with the business.</p><a className="button subtle" href="/customer/orders">View my orders</a></section>}
     <div className="storefront-grid">
       <section>
         <div className="store-section-head"><div><p className="eyebrow">THE COLLECTION</p><h2>Shop products</h2></div><span>{visibleProducts.length} of {store.products.length} items</span></div>
@@ -413,17 +560,36 @@ export default function StorefrontPage({ params }) {
           <label>Quantity<input type="number" min="1" max={Math.min(50, variant?.stock || 1)} value={quantity} onChange={(event) => setQuantity(event.target.value)} required /></label>
           <button className="button subtle full-width" type="button" disabled={!variant || variant.stock < 1} onClick={addToCart}><ShoppingBag size={14} /> Add selected option to cart</button>
           {cart.length > 0 && <div className="store-cart"><div className="store-cart-heading"><b>Your cart</b><span>{cart.reduce((sum, item) => sum + item.quantity, 0)} items</span></div>{cart.map((line) => { const cartProduct = store.products.find((item) => item._id === line.productId); const cartVariant = cartProduct?.variants.find((item) => item._id === line.variantId); const optionPrice = cartProduct?.promotionalPrice == null ? (cartVariant?.price ?? cartProduct?.price ?? 0) : Math.min(cartVariant?.price ?? cartProduct?.price ?? 0, cartProduct.promotionalPrice); return <div className="store-cart-line" key={`${line.productId}:${line.variantId}`}><span><b>{cartProduct?.name}</b><small>{variantSummary(cartVariant || {}) || "Standard"} · {money(optionPrice)} each</small></span><input aria-label={`Quantity of ${cartProduct?.name}`} type="number" min="1" max={cartVariant?.stock || 1} value={line.quantity} onChange={(event) => updateCartQuantity(line, event.target.value)} /><button type="button" className="icon-button danger-action" aria-label={`Remove ${cartProduct?.name}`} onClick={() => removeCartItem(line)}><X size={14} /></button></div>; })}<p className="checkout-total"><span>Cart subtotal</span><b>{money(cartTotal)}</b></p></div>}
-          <div className="checkout-divider" /><p className="checkout-total"><span>Items subtotal</span><b>{money(cartTotal)}</b></p><p className="payment-method-note">Delivery fees are not configured and may be confirmed by the merchant. Online payments are unavailable; arrange payment directly with the merchant.</p>
-          <h3>Delivery details</h3>
-          <label>Payment method<select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}><option value="pay_on_delivery">Pay on delivery / arrange with merchant</option><option value="mobile_money">Mobile money (manual verification)</option><option value="bank_transfer">Bank transfer (manual verification)</option></select></label>
-          <label>Full name<input required minLength="2" value={customer.name} onChange={(event) => setCustomer({ ...customer, name: event.target.value })} /></label>
-          <label>Phone number<input required value={customer.phone} onChange={(event) => setCustomer({ ...customer, phone: event.target.value })} /></label>
-          <label>Email <span className="optional-text">Optional</span><input type="email" value={customer.email} onChange={(event) => setCustomer({ ...customer, email: event.target.value })} /></label>
-          <label>Delivery location <span className="optional-text">Optional</span><input value={customer.location} onChange={(event) => setCustomer({ ...customer, location: event.target.value })} /></label>
-          <label>Delivery address<input required minLength="5" value={customer.address} onChange={(event) => setCustomer({ ...customer, address: event.target.value })} /></label>
-          <label>Delivery instructions <span className="optional-text">Optional</span><textarea rows="2" value={customer.instructions} onChange={(event) => setCustomer({ ...customer, instructions: event.target.value })} /></label>
+          <div className="checkout-divider" /><p className="checkout-total"><span>Items subtotal</span><b>{money(cartTotal)}</b></p>
+          {customerAccount ? <>
+            <div className="customer-account-checkout"><span>Signed in as <b>{customerAccount.email}</b></span><a href="/customer/orders">My orders</a><button type="button" className="text-link" onClick={signOutCustomer} disabled={authBusy}>Sign out</button></div>
+            <p className="payment-method-note">Online payment processing is not configured. Orders remain pending until the business verifies payment.</p>
+            <h3>Delivery details</h3>
+            <label>Payment method<select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}><option value="pay_on_delivery">Pay on delivery / arrange with merchant</option><option value="mobile_money">Mobile money (manual verification)</option><option value="bank_transfer">Bank transfer (manual verification)</option></select></label>
+            <label>Full name<input required minLength="2" value={customer.name} onChange={(event) => setCustomer({ ...customer, name: event.target.value })} /></label>
+            <label>Phone number<input required value={customer.phone} onChange={(event) => setCustomer({ ...customer, phone: event.target.value })} /></label>
+            <label>Email<input type="email" readOnly value={customerAccount.email} /></label>
+            <label>Delivery location <span className="optional-text">Optional</span><input value={customer.location} onChange={(event) => setCustomer({ ...customer, location: event.target.value })} /></label>
+            <label>Delivery address<input required minLength="5" value={customer.address} onChange={(event) => setCustomer({ ...customer, address: event.target.value })} /></label>
+            <label>Delivery instructions <span className="optional-text">Optional</span><textarea rows="2" value={customer.instructions} onChange={(event) => setCustomer({ ...customer, instructions: event.target.value })} /></label>
+          </> : cart.length > 0 ? <section className="customer-auth-panel">
+            <h3>Sign in to continue</h3>
+            <p>Browsing is open to everyone. Sign in or create an account to place your order and track it later. New passwords should be 12 to 72 characters.</p>
+            {authMode === "register" && <label>Full name<input autoComplete="name" value={authName} onChange={(event) => setAuthName(event.target.value)} /></label>}
+            <label>Email address<input type="email" autoComplete="email" value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} /></label>
+            {authMode !== "forgot" && <label>Password<input type="password" maxLength="72" autoComplete={authMode === "register" ? "new-password" : "current-password"} value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} /></label>}
+            {authError && <p className="inline-error" role="alert">{authError}</p>}
+            {authMessage && <p className="customer-auth-message" role="status">{authMessage}</p>}
+            {authMode === "forgot" ? <div className="customer-auth-actions"><button className="button primary full-width" type="button" disabled={authBusy} onClick={requestPasswordReset}>{authBusy ? "Sending…" : "Send password reset link"}</button><button type="button" className="text-link" onClick={() => setAuthMode("login")}>Back to sign in</button></div> : <div className="customer-auth-actions">
+              <button className="button primary full-width" type="button" disabled={authBusy} onClick={submitCustomerAuth}>{authBusy ? "Please wait…" : authMode === "register" ? "Create account" : "Sign in"}</button>
+              <button className="google-signin-button" type="button" onClick={continueWithGoogle}><span aria-hidden="true">G</span> Continue with Google</button>
+              {authMode === "login" && <button type="button" className="text-link" onClick={() => setAuthMode("forgot")}>Forgot password?</button>}
+              <button type="button" className="text-link" onClick={() => { setAuthMode(authMode === "register" ? "login" : "register"); setAuthError(""); setAuthMessage(""); }}>{authMode === "register" ? "Already have an account? Sign in" : "New customer? Create an account"}</button>
+              <a className="text-link" href={`/customer/login?returnTo=${encodeURIComponent(`/store/${slug}`)}`}>Open customer sign-in page</a>
+            </div>}
+          </section> : <p className="payment-method-note">Add an item to your cart to continue to checkout.</p>}
           {orderError && <p className="inline-error">{orderError}</p>}
-          <button className="button primary full-width" type="submit" disabled={busy || cart.length === 0}>{busy ? "Placing order…" : `Place order · ${money(cartTotal)} · payment pending`}</button>
+          {customerAccount && <button className="button primary full-width" type="submit" disabled={busy || cart.length === 0}>{busy ? "Placing order…" : `Place order · ${money(cartTotal)} · payment pending`}</button>}
         </form></> : <div className="empty-state">Choose an available product to continue.</div>}
       </section>
     </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Activity, BarChart3, Bell, Boxes, BriefcaseBusiness, Building2, ChevronDown,
@@ -87,8 +88,8 @@ export function AppShell({ role, children }) {
     <div className={`app-shell ${collapsed ? "sidebar-collapsed" : ""}`}>
       <aside className="sidebar">
         <div className="brand-row">
-          <div className="brand-mark">A</div>
-          <div className="brand-copy"><b>{role === "super_admin" ? "NexusControl" : tenant?.name || "Aura Atelier"}</b><small>{role === "super_admin" ? "SUPER ADMIN" : tenant?.category || "STORE OPERATIONS"}</small></div>
+          <div className="brand-mark"><Image src="/vendora-mark.png" alt="" width={36} height={36} /></div>
+          <div className="brand-copy"><b>Vendora</b><small>{role === "super_admin" ? "SUPER ADMIN" : tenant?.name || "STORE OPERATIONS"}</small></div>
           <button className="icon-button collapse-button" aria-label="Collapse navigation" onClick={() => setCollapsed(!collapsed)}><ChevronDown size={16} /></button>
         </div>
         <div className="workspace-label">{role === "super_admin" ? "PLATFORM WORKSPACE" : "LIVE STOREFRONT"}</div>
@@ -112,7 +113,7 @@ export function AppShell({ role, children }) {
       </aside>
       <main className="main-area">
         <header className="topbar">
-          <div className="breadcrumbs">{role === "super_admin" ? "NexusControl" : tenant?.name || "Aura Atelier"} <span>/</span> <b>{title}</b></div>
+          <div className="breadcrumbs">{role === "super_admin" ? "Vendora" : tenant?.name || "Vendora"} <span>/</span> <b>{title}</b></div>
           <div className="topbar-actions">
             <label className="global-search"><Search size={15} /><input aria-label="Global search" value={globalSearch} onChange={(event) => setGlobalSearch(event.target.value)} onKeyDown={submitGlobalSearch} placeholder={role === "super_admin" ? "Search businesses…" : "Search orders, SKU, customer"} /><kbd>Enter</kbd></label>
             {role === "tenant" && <a className="button subtle compact" href={`/store/${tenant?.slug || "aura-atelier"}`} target="_blank" rel="noreferrer">View Live Store</a>}

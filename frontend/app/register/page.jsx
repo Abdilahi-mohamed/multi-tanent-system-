@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useState } from "react";
 import { KeyRound, ShieldCheck } from "lucide-react";
 import { api } from "../../lib/api";
@@ -36,7 +37,7 @@ export default function BootstrapAdminRegistrationPage() {
   }
 
   return <main className="login-page">
-    <div className="login-brand"><span className="brand-mark">A</span><div><b>Aura Commerce</b><small>Multi-tenant business platform</small></div></div>
+    <Image className="login-brand-logo" src="/vendora-logo.png" alt="Vendora — Global Multi-Vendor SaaS Platform" width={555} height={375} priority />
     <section className="login-card">
       <div className="login-icon"><ShieldCheck size={21} /></div>
       {created ? <>
