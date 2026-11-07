@@ -29,7 +29,7 @@ export default function LoginPage() {
   }
 
   return <main className="login-page">
-    <Image className="login-brand-logo" src="/vendora-logo.png" alt="Vendora — Global Multi-Vendor SaaS Platform" width={555} height={375} priority />
+    <Image className="login-brand-logo" src="/vendora-brand-logo.png" alt="Vendora — Global Multi-Vendor SaaS Platform" width={512} height={256} priority />
     <section className="login-card">
       <div className="login-icon"><LockKeyhole size={21} /></div>
       <h1>Welcome back</h1>

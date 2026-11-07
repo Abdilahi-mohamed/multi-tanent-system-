@@ -1,8 +1,9 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Vendora",
-  description: "Global multi-vendor commerce platform"
+  title: "Vendora — Global Multi-Vendor SaaS Platform",
+  description: "Vendora — Global Multi-Vendor SaaS Platform",
+  applicationName: "Vendora"
 };
 
 export default function RootLayout({ children }) {

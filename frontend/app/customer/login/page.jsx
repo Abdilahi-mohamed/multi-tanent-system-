@@ -92,7 +92,7 @@ export default function CustomerLoginPage() {
 
   return <main className={`login-page ${customBranding ? `login-page-custom ${loginPage.layout} ${loginPage.formStyle}` : ""}`} style={pageStyle}>
     <Link href={returnTo} className="customer-auth-back">{returnTo.startsWith("/store/") ? "Back to store" : "Back"}</Link>
-    {!customBranding && <Image className="login-brand-logo" src="/vendora-logo.png" alt="Vendora — Global Multi-Vendor SaaS Platform" width={555} height={375} priority />}
+    {!customBranding && <Image className="login-brand-logo" src="/vendora-brand-logo.png" alt="Vendora — Global Multi-Vendor SaaS Platform" width={512} height={256} priority />}
     {customBranding && loginPage.layout !== "split" && loginPage.logo && <img className="tenant-login-logo" src={loginPage.logo} alt={`${loginPage.companyName || tenantName} logo`} />}
     {customBranding && loginPage.layout === "split" && <div className="tenant-login-brand">{loginPage.logo && <img className="tenant-login-logo" src={loginPage.logo} alt={`${loginPage.companyName || tenantName} logo`} />}<h2>{loginPage.companyName || tenantName}</h2><p>{loginPage.welcomeMessage}</p></div>}
     <section className="login-card customer-login-card">

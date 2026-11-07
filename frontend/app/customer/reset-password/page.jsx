@@ -48,7 +48,7 @@ export default function ResetCustomerPasswordPage() {
   }
 
   return <main className="login-page">
-    <Image className="login-brand-logo" src="/vendora-logo.png" alt="Vendora — Global Multi-Vendor SaaS Platform" width={555} height={375} priority />
+    <Image className="login-brand-logo" src="/vendora-brand-logo.png" alt="Vendora — Global Multi-Vendor SaaS Platform" width={512} height={256} priority />
     <section className="login-card customer-login-card">
       <h1>Choose a new password</h1>
       <p>Reset links expire one hour after they are sent.</p>
