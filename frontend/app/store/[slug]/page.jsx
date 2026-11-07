@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { CheckCircle2, MessageCircle, Search, Send, ShoppingBag, Store, X } from "lucide-react";
-import { api, apiUrl, money } from "../../../lib/api";
+import { api, money } from "../../../lib/api";
 import { StoreSupportChat, StoreSupportNotifications } from "../../../components/StoreSupportChat";
 
 const accessKey = (slug) => `aura-order-chat-${slug}`;
@@ -42,13 +42,8 @@ export default function StorefrontPage({ params }) {
   const [cartReady, setCartReady] = useState(false);
   const [customer, setCustomer] = useState({ name: "", phone: "", email: "", address: "", location: "", instructions: "" });
   const [customerAccount, setCustomerAccount] = useState(null);
-  const [authMode, setAuthMode] = useState("login");
-  const [authName, setAuthName] = useState("");
-  const [authEmail, setAuthEmail] = useState("");
-  const [authPassword, setAuthPassword] = useState("");
-  const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState("");
-  const [authMessage, setAuthMessage] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("pay_on_delivery");
   const [busy, setBusy] = useState(false);
   const [order, setOrder] = useState(null);
@@ -65,7 +60,6 @@ export default function StorefrontPage({ params }) {
   useEffect(() => { Promise.resolve(params).then((value) => setSlug(value.slug)); }, [params]);
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
-    if (query.get("checkout") === "1") setAuthMode("login");
     const googleError = query.get("customerAuthError");
     if (googleError === "google_not_configured") {
       setAuthError("Google sign-in is not configured for this store yet.");
@@ -356,53 +350,10 @@ export default function StorefrontPage({ params }) {
     setCart((current) => current.filter((entry) => entry !== line));
   }
 
-  async function submitCustomerAuth() {
-    setAuthBusy(true);
-    setAuthError("");
-    setAuthMessage("");
-    try {
-      const path = authMode === "register" ? "/customer/auth/register" : "/customer/auth/login";
-      const body = authMode === "register"
-        ? { name: authName, email: authEmail, password: authPassword }
-        : { email: authEmail, password: authPassword };
-      const result = await api(path, { method: "POST", body: JSON.stringify(body) });
-      setCustomerAccount(result.customer);
-      setCustomer((current) => ({
-        ...current,
-        name: current.name || result.customer.name,
-        email: result.customer.email
-      }));
-      setAuthPassword("");
-      setAuthError("");
-      setAuthMessage(authMode === "register" ? "Your account is ready. Add your delivery details to continue." : "Signed in. Add your delivery details to continue.");
-    } catch (reason) {
-      setAuthError(reason.message);
-    } finally {
-      setAuthBusy(false);
-    }
-  }
-
-  async function requestPasswordReset() {
-    setAuthBusy(true);
-    setAuthError("");
-    setAuthMessage("");
-    try {
-      const result = await api("/customer/auth/forgot-password", {
-        method: "POST",
-        body: JSON.stringify({ email: authEmail, returnTo: `${window.location.pathname}${window.location.search}` })
-      });
-      setAuthMessage(result.message);
-    } catch (reason) {
-      setAuthError(reason.message);
-    } finally {
-      setAuthBusy(false);
-    }
-  }
-
-  function continueWithGoogle() {
+  function continueToCustomerLogin() {
     if (cart.length) window.sessionStorage.setItem(cartKey(slug), JSON.stringify(cart));
     const returnTo = `/store/${encodeURIComponent(slug)}?checkout=1`;
-    window.location.assign(apiUrl(`/customer/auth/google?returnTo=${encodeURIComponent(returnTo)}`));
+    window.location.assign(`/customer/login?returnTo=${encodeURIComponent(returnTo)}`);
   }
 
   async function signOutCustomer() {
@@ -570,19 +521,11 @@ export default function StorefrontPage({ params }) {
           </> : cart.length > 0 ? <section className={`customer-auth-panel ${store.tenant.loginPage?.formStyle === "minimal" ? "custom-login-minimal" : ""}`} style={{ "--login-primary": store.tenant.loginPage?.primaryColor || "#2563EB", "--login-secondary": store.tenant.loginPage?.secondaryColor || "#1F2937" }}>
             {store.tenant.loginPage?.logo && <img className="store-login-logo" src={store.tenant.loginPage.logo} alt={`${store.tenant.loginPage.companyName || store.tenant.name} logo`} />}
             <h3>{store.tenant.loginPage?.heading || `Sign in to ${store.tenant.name}`}</h3>
-            <p>{store.tenant.loginPage?.welcomeMessage || "Browsing is open to everyone. Sign in or create an account to place your order and track it later."} New passwords should be 12 to 72 characters.</p>
-            {authMode === "register" && <label>Full name<input autoComplete="name" value={authName} onChange={(event) => setAuthName(event.target.value)} /></label>}
-            <label>Email address<input type="email" autoComplete="email" value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} /></label>
-            {authMode !== "forgot" && <label>Password<input type="password" maxLength="72" autoComplete={authMode === "register" ? "new-password" : "current-password"} value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} /></label>}
+            <p>{store.tenant.loginPage?.welcomeMessage || "Sign in or create an account to place your order and track it later."}</p>
             {authError && <p className="inline-error" role="alert">{authError}</p>}
-            {authMessage && <p className="customer-auth-message" role="status">{authMessage}</p>}
-            {authMode === "forgot" ? <div className="customer-auth-actions"><button className="button primary full-width" type="button" disabled={authBusy} onClick={requestPasswordReset}>{authBusy ? "Sending…" : "Send password reset link"}</button><button type="button" className="text-link" onClick={() => setAuthMode("login")}>Back to sign in</button></div> : <div className="customer-auth-actions">
-              <button className="button primary full-width customer-auth-primary" style={{ background: store.tenant.loginPage?.primaryColor || undefined, borderColor: store.tenant.loginPage?.primaryColor || undefined, color: "#fff" }} type="button" disabled={authBusy} onClick={submitCustomerAuth}>{authBusy ? "Please wait…" : authMode === "register" ? "Create account" : "Sign in"}</button>
-              <button className={`google-signin-button ${store.tenant.loginPage?.googleButtonStyle === "dark" ? "tenant-google-dark" : ""}`} type="button" onClick={continueWithGoogle}><span aria-hidden="true">G</span> Continue with Google</button>
-              {authMode === "login" && <button type="button" className="text-link" onClick={() => setAuthMode("forgot")}>Forgot password?</button>}
-              <button type="button" className="text-link" onClick={() => { setAuthMode(authMode === "register" ? "login" : "register"); setAuthError(""); setAuthMessage(""); }}>{authMode === "register" ? "Already have an account? Sign in" : "New customer? Create an account"}</button>
-              <a className="text-link" href={`/customer/login?returnTo=${encodeURIComponent(`/store/${slug}`)}`}>Open customer sign-in page</a>
-            </div>}
+            <p className="payment-method-note">Your cart will be saved while you sign in. Email/password and Google sign-in are available on your company's customer login page.</p>
+            <button type="button" className="button primary full-width customer-auth-primary" style={{ background: store.tenant.loginPage?.primaryColor || undefined, borderColor: store.tenant.loginPage?.primaryColor || undefined, color: "#fff" }} onClick={continueToCustomerLogin}>Sign in to continue</button>
+            <a className="text-link" href={`/customer/login?returnTo=${encodeURIComponent(`/store/${slug}?checkout=1`)}`}>Open customer login page</a>
           </section> : <p className="payment-method-note">Add an item to your cart to continue to checkout.</p>}
           {orderError && <p className="inline-error">{orderError}</p>}
           {customerAccount && <button className="button primary full-width" type="submit" disabled={busy || cart.length === 0}>{busy ? "Placing order…" : `Place order · ${money(cartTotal)} · payment pending`}</button>}

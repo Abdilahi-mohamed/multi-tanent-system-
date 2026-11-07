@@ -882,6 +882,10 @@ td b { color: var(--text); font-size: 9px; font-weight: 600; }
 .store-link-display { display: block; overflow: hidden; margin: 0 12px 10px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 4px; color: #d8e6ff; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .store-link-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 12px; }
 .store-link-actions .button { margin: 0; }
+.storefront-management-grid > .panel { min-width: 0; }
+.storefront-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; padding: 0 12px 12px; }
+.storefront-card-actions .button { margin: 0; }
+.facebook-share-icon { width: 13px; height: 13px; display: inline-grid; place-items: center; border-radius: 50%; background: #1877F2; color: #fff; font: 700 11px Arial, sans-serif; }
 .login-brand-logo { width: min(390px, 85vw); height: 190px; margin-bottom: 0; }
 .login-card { border-color: var(--border); background: var(--card-slate); color: #fff; box-shadow: 0 16px 40px rgba(0,0,0,.28); }
 .login-card > p, .register-signin-link, .login-note { color: #d1d1d1; }
