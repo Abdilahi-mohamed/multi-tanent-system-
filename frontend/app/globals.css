@@ -1022,3 +1022,35 @@ td b { color: var(--text); font-size: 9px; font-weight: 600; }
   .login-page-custom.split { flex-direction: column; gap: 12px; }
   .tenant-login-brand { width: min(100%, 320px); }
 }
+.storefront-page { background: #000; color: #fff; }
+.storefront-page .storefront-header,
+.storefront-page .store-catalog-section,
+.storefront-page .checkout-card,
+.storefront-page .store-product,
+.storefront-page .order-confirmation,
+.storefront-page .confirmation-details,
+.storefront-page .store-cart,
+.storefront-page .customer-auth-panel,
+.storefront-page .store-customer-support,
+.storefront-page .store-customer-support > div,
+.storefront-page .store-platform-support,
+.storefront-page .store-platform-support-form { border-color: #333; background-color: #111; color: #fff; }
+.storefront-page :is(h1, h2, h3, b, strong, label, p, span, small, a, .eyebrow, .store-brand, .store-section-head > span, .store-product-copy small, .store-product-copy b, .store-product-copy span, .store-cart-line b, .checkout-total, .store-customer-name) { color: #fff; }
+.storefront-page :is(input, select, textarea) { border-color: #555; background-color: #090909; color: #fff; }
+.storefront-page :is(input, select, textarea)::placeholder { color: #ccc; }
+.storefront-page .store-product-image { background: #1a1a1a; color: #fff; }
+.storefront-page .store-product.selected { border-color: #FACC15; box-shadow: 0 0 0 1px #FACC15; }
+.storefront-page .button,
+.storefront-page .button.primary,
+.storefront-page .button.subtle,
+.storefront-page .customer-auth-primary,
+.storefront-page .customer-auth-panel .button { border-color: #FACC15; background: #FACC15; color: #fff; }
+.storefront-page .button:hover:not(:disabled),
+.storefront-page .customer-auth-primary:hover:not(:disabled) { border-color: #EAB308; background: #EAB308; color: #fff; }
+.storefront-page .store-section-tabs button.selected { border-color: #FACC15; background: #FACC15; color: #fff; }
+.storefront-page .google-signin-button { border-color: #FACC15; background: #FACC15; color: #fff; }
+.storefront-page .google-signin-button:hover { border-color: #EAB308; background: #EAB308; color: #fff; }
+.storefront-page .payment-method-note { border: 1px solid #665500; background: #262000; color: #fff; }
+.storefront-page .store-support-messages,
+.storefront-page .store-support-message,
+.storefront-page .store-platform-support-messages { color: #fff; }
