@@ -5,8 +5,8 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Activity, BarChart3, Bell, Boxes, BriefcaseBusiness, Building2, ChevronDown,
-  CircleHelp, ClipboardList, CreditCard, Grid2X2, LayoutDashboard, LogOut, MessageSquare,
-  Package, Search, Settings, Shield, ShoppingBag, Users, Wallet
+  CircleHelp, ClipboardList, CreditCard, Grid2X2, LayoutDashboard, LogOut,
+  MessageSquare, Package, Search, Settings, Shield, ShoppingBag, Users, Wallet
 } from "lucide-react";
 import { api, clearToken } from "../lib/api";
 
@@ -23,9 +23,10 @@ const adminSections = [
 const tenantSections = [
   { title: "STORE & OVERVIEW", items: [{ label: "Overview", href: "/dashboard", icon: Grid2X2 }, { label: "Sales Analytics", href: "/dashboard", icon: BarChart3 }] },
   { title: "CATALOG & STOCK", items: [{ label: "Products & Variants", href: "/dashboard/products", icon: Package }, { label: "Product Sections", href: "/dashboard/sections", icon: Boxes }] },
-  { title: "COMMERCE OPERATIONS", items: [{ label: "Orders & Fulfillment", href: "/dashboard/orders", icon: ShoppingBag }] },
+  { title: "COMMERCE OPERATIONS", items: [{ label: "Orders & Fulfillment", href: "/dashboard/orders", icon: ShoppingBag }, { label: "Payment Activity", href: "/dashboard/payments", icon: CreditCard }] },
   { title: "COMMUNICATIONS", items: [{ label: "Order Chat", href: "/dashboard/order-chat", icon: MessageSquare }, { label: "Customer Support / Chat", href: "/dashboard/chat", icon: CircleHelp }] },
-  { title: "STOREFRONT & SETTINGS", items: [{ label: "Public Storefront", href: "/dashboard/settings", icon: BriefcaseBusiness }, { label: "Payment Gateway", href: "/dashboard/payments", icon: CreditCard }, { label: "Store Settings", href: "/dashboard/settings", icon: Settings }] }
+  { title: "STOREFRONT", items: [{ label: "Storefront Management", href: "/dashboard/settings", icon: BriefcaseBusiness }] },
+  { title: "PAYMENTS", items: [{ label: "Payment Gateway Settings", href: "/dashboard/payment-gateway-settings", icon: CreditCard }] }
 ];
 
 export function AppShell({ role, children }) {
@@ -88,7 +89,7 @@ export function AppShell({ role, children }) {
     <div className={`app-shell ${collapsed ? "sidebar-collapsed" : ""}`}>
       <aside className="sidebar">
         <div className="brand-row">
-          <div className="brand-mark"><Image src="/vendora-mark.png" alt="" width={36} height={36} /></div>
+          <div className="brand-mark"><Image src="/vendora-brand-mark.png" alt="" width={36} height={36} /></div>
           <div className="brand-copy"><b>Vendora</b><small>{role === "super_admin" ? "SUPER ADMIN" : tenant?.name || "STORE OPERATIONS"}</small></div>
           <button className="icon-button collapse-button" aria-label="Collapse navigation" onClick={() => setCollapsed(!collapsed)}><ChevronDown size={16} /></button>
         </div>

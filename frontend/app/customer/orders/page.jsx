@@ -47,7 +47,7 @@ export default function CustomerOrdersPage() {
   }
 
   return <main className="customer-orders-page">
-    <header className="customer-orders-header"><Link href="/customer/orders" className="store-brand"><span className="brand-mark"><Image src="/vendora-mark.png" alt="" width={36} height={36} /></span><b>Vendora</b></Link><div>{customer && <><span>{customer.name}</span><button className="button subtle compact" type="button" onClick={signOut}><LogOut size={14} /> Sign out</button></>}</div></header>
+    <header className="customer-orders-header"><Link href="/customer/orders" className="store-brand"><span className="brand-mark"><Image src="/vendora-brand-mark.png" alt="" width={36} height={36} /></span><b>Vendora</b></Link><div>{customer && <><span>{customer.name}</span><button className="button subtle compact" type="button" onClick={signOut}><LogOut size={14} /> Sign out</button></>}</div></header>
     <section className="customer-orders-content">
       {orders[0]?.tenantId?.slug && <Link href={`/store/${encodeURIComponent(orders[0].tenantId.slug)}`} className="text-link"><ArrowLeft size={14} /> Continue shopping at {orders[0].tenantId.name}</Link>}
       <h1>My orders</h1>

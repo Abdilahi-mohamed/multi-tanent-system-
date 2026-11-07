@@ -292,6 +292,37 @@ const tenantPaymentProviderSchema = z.object({
   enabled: z.boolean()
 });
 const tenantPaymentProviders = ["zaad", "evc_plus", "edahab", "sahal", "sifalo_pay", "card", "bank_transfer"];
+const defaultLoginPageSettings = {
+  logo: "",
+  backgroundColor: "#111827",
+  backgroundImage: "",
+  primaryColor: "#2563EB",
+  secondaryColor: "#1F2937",
+  heading: "Welcome back",
+  welcomeMessage: "Sign in to continue to our store.",
+  companyName: "",
+  layout: "centered",
+  formStyle: "card",
+  googleButtonStyle: "light"
+};
+const loginPageImageSchema = z.string().max(350000).refine((value) => {
+  if (!value) return true;
+  const match = value.match(/^data:image\/(?:png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/);
+  return Boolean(match && Buffer.from(match[1], "base64").length <= 256 * 1024);
+}, "Use a PNG, JPEG, or WebP image smaller than 256 KB.");
+const tenantLoginPageSettingsSchema = z.object({
+  logo: loginPageImageSchema,
+  backgroundColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  backgroundImage: loginPageImageSchema,
+  primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  secondaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  heading: z.string().trim().min(1).max(100),
+  welcomeMessage: z.string().trim().max(240),
+  companyName: z.string().trim().max(100),
+  layout: z.enum(["centered", "split"]),
+  formStyle: z.enum(["card", "minimal"]),
+  googleButtonStyle: z.enum(["light", "dark"])
+}).strict();
 
 async function getPaymentMetrics(filter = {}) {
   const grouped = await Order.aggregate([
@@ -326,9 +357,9 @@ function tenantIdFor(user) {
 
 async function findActiveTenantBySlug(slug) {
   const normalizedSlug = slug.toLowerCase();
-  const currentTenant = await Tenant.findOne({ slug: normalizedSlug, status: "active" }).select("_id name slug description category");
+  const currentTenant = await Tenant.findOne({ slug: normalizedSlug, status: "active" }).select("_id name slug description category loginPage");
   if (currentTenant) return currentTenant;
-  return Tenant.findOne({ previousSlugs: normalizedSlug, status: "active" }).select("_id name slug description category");
+  return Tenant.findOne({ previousSlugs: normalizedSlug, status: "active" }).select("_id name slug description category loginPage");
 }
 
 async function updateTenantDetails(tenant, updates) {
@@ -579,6 +610,76 @@ async function writeAudit({ actor, action, targetType, targetId, tenantId = null
     tenantId,
     details
   });
+}
+
+async function saveTenantPaymentProvider({ tenantId, provider, input, actor }) {
+  let existing = await TenantPaymentProvider.findOne({ tenantId, provider })
+    .select("+apiKeyCiphertext +apiKeyIv +apiKeyAuthTag +webhookCiphertext +webhookIv +webhookAuthTag");
+  if (!existing && !input.apiKey) {
+    return { error: "Enter the provider API key to add this payment method.", status: 400 };
+  }
+
+  let encryptedApiKey;
+  let encryptedWebhook;
+  try {
+    if (input.apiKey) encryptedApiKey = encryptPaymentCredential(input.apiKey);
+    if (input.webhookSecret) encryptedWebhook = encryptPaymentCredential(input.webhookSecret);
+  } catch (error) {
+    if (error.code !== "PAYMENT_CREDENTIAL_ENCRYPTION_KEY_MISSING") throw error;
+    return {
+      error: "Payment credential encryption is not configured. Set PAYMENT_CREDENTIAL_ENCRYPTION_KEY on the API server.",
+      status: 503
+    };
+  }
+
+  const values = {
+    tenantId,
+    provider,
+    commissionRate: input.commissionRate,
+    enabled: input.enabled,
+    updatedBy: actor._id
+  };
+  if (encryptedApiKey) {
+    values.apiKeyCiphertext = encryptedApiKey.ciphertext;
+    values.apiKeyIv = encryptedApiKey.iv;
+    values.apiKeyAuthTag = encryptedApiKey.authTag;
+    values.apiKeyHint = input.apiKey.slice(-4);
+  }
+  if (encryptedWebhook) {
+    values.webhookCiphertext = encryptedWebhook.ciphertext;
+    values.webhookIv = encryptedWebhook.iv;
+    values.webhookAuthTag = encryptedWebhook.authTag;
+    values.webhookHint = input.webhookSecret.slice(-4);
+  }
+  if (existing) {
+    Object.assign(existing, values);
+    await existing.save();
+  } else {
+    existing = await TenantPaymentProvider.create(values);
+  }
+  await writeAudit({
+    actor,
+    action: "tenant_payment_provider.saved",
+    targetType: "payment_provider",
+    targetId: existing._id,
+    tenantId,
+    details: { provider: existing.provider, enabled: existing.enabled }
+  });
+  return {
+    item: {
+      _id: existing._id,
+      provider: existing.provider,
+      apiKeyHint: existing.apiKeyHint,
+      webhookHint: existing.webhookHint,
+      apiKeyConfigured: Boolean(existing.apiKeyHint),
+      webhookConfigured: Boolean(existing.webhookCiphertext),
+      commissionRate: existing.commissionRate,
+      enabled: existing.enabled,
+      connectionStatus: existing.enabled ? "requires_attention" : "disconnected",
+      createdAt: existing.createdAt,
+      updatedAt: existing.updatedAt
+    }
+  };
 }
 
 async function restoreStockReservation({ productId, tenantId, variantId, quantity }) {
@@ -1453,72 +1554,14 @@ api.patch("/admin/payment-management/companies/:tenantId/providers/:provider", a
     if (!input) return;
     const tenant = await Tenant.findById(req.params.tenantId).select("_id");
     if (!tenant) return res.status(404).json({ error: "Company not found." });
-
-    const query = { tenantId: tenant._id, provider: req.params.provider };
-    let existing = await TenantPaymentProvider.findOne(query)
-      .select("+apiKeyCiphertext +apiKeyIv +apiKeyAuthTag +webhookCiphertext +webhookIv +webhookAuthTag");
-    if (!existing && !input.apiKey) {
-      return res.status(400).json({ error: "Enter the provider API key to add this payment method." });
-    }
-
-    let encryptedApiKey;
-    let encryptedWebhook;
-    try {
-      if (input.apiKey) encryptedApiKey = encryptPaymentCredential(input.apiKey);
-      if (input.webhookSecret) encryptedWebhook = encryptPaymentCredential(input.webhookSecret);
-    } catch (error) {
-      if (error.code !== "PAYMENT_CREDENTIAL_ENCRYPTION_KEY_MISSING") throw error;
-      return res.status(503).json({
-        error: "Payment credential encryption is not configured. Set PAYMENT_CREDENTIAL_ENCRYPTION_KEY on the API server."
-      });
-    }
-
-    const values = {
+    const result = await saveTenantPaymentProvider({
       tenantId: tenant._id,
       provider: req.params.provider,
-      commissionRate: input.commissionRate,
-      enabled: input.enabled,
-      updatedBy: req.user._id
-    };
-    if (encryptedApiKey) {
-      values.apiKeyCiphertext = encryptedApiKey.ciphertext;
-      values.apiKeyIv = encryptedApiKey.iv;
-      values.apiKeyAuthTag = encryptedApiKey.authTag;
-      values.apiKeyHint = input.apiKey.slice(-4);
-    }
-    if (encryptedWebhook) {
-      values.webhookCiphertext = encryptedWebhook.ciphertext;
-      values.webhookIv = encryptedWebhook.iv;
-      values.webhookAuthTag = encryptedWebhook.authTag;
-      values.webhookHint = input.webhookSecret.slice(-4);
-    }
-    if (existing) {
-      Object.assign(existing, values);
-      await existing.save();
-    } else {
-      existing = await TenantPaymentProvider.create(values);
-    }
-    await writeAudit({
-      actor: req.user,
-      action: "tenant_payment_provider.saved",
-      targetType: "payment_provider",
-      targetId: existing._id,
-      tenantId: tenant._id,
-      details: { provider: existing.provider, enabled: existing.enabled }
+      input,
+      actor: req.user
     });
-    res.json({
-      item: {
-        _id: existing._id,
-        provider: existing.provider,
-        apiKeyHint: existing.apiKeyHint,
-        webhookHint: existing.webhookHint,
-        webhookConfigured: Boolean(existing.webhookCiphertext),
-        commissionRate: existing.commissionRate,
-        enabled: existing.enabled,
-        createdAt: existing.createdAt,
-        updatedAt: existing.updatedAt
-      }
-    });
+    if (result.error) return res.status(result.status).json({ error: result.error });
+    res.json({ item: result.item });
   } catch (error) {
     next(error);
   }
@@ -1752,6 +1795,148 @@ api.get("/tenant/orders", authenticate, requireRole("business_owner"), async (re
     }
     const items = await Order.find(filter).sort({ createdAt: -1 }).limit(100).lean();
     res.json({ items });
+  } catch (error) {
+    next(error);
+  }
+});
+
+api.get("/tenant/storefront-login", authenticate, requireRole("business_owner"), async (req, res, next) => {
+  try {
+    const tenant = await Tenant.findById(tenantIdFromSession(req.user)).select("loginPage").lean();
+    if (!tenant) return res.status(404).json({ error: "Company not found." });
+    res.json({
+      draft: { ...defaultLoginPageSettings, ...(tenant.loginPage?.draft || {}) },
+      isPublished: Boolean(tenant.loginPage?.isPublished)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+api.patch("/tenant/storefront-login", authenticate, requireRole("business_owner"), async (req, res, next) => {
+  try {
+    const input = parseOrRespond(tenantLoginPageSettingsSchema, req.body, res);
+    if (!input) return;
+    const tenant = await Tenant.findById(tenantIdFromSession(req.user));
+    if (!tenant) return res.status(404).json({ error: "Company not found." });
+    tenant.loginPage.draft = input;
+    tenant.markModified("loginPage");
+    await tenant.save();
+    await writeAudit({
+      actor: req.user,
+      action: "storefront_login.draft_saved",
+      targetType: "storefront_login",
+      targetId: tenant._id,
+      tenantId: tenant._id
+    });
+    res.json({ draft: input, isPublished: tenant.loginPage.isPublished });
+  } catch (error) {
+    next(error);
+  }
+});
+
+api.post("/tenant/storefront-login/publish", authenticate, requireRole("business_owner"), async (req, res, next) => {
+  try {
+    const tenant = await Tenant.findById(tenantIdFromSession(req.user));
+    if (!tenant) return res.status(404).json({ error: "Company not found." });
+    tenant.loginPage.published = tenant.loginPage.draft.toObject();
+    tenant.loginPage.isPublished = true;
+    tenant.markModified("loginPage");
+    await tenant.save();
+    await writeAudit({
+      actor: req.user,
+      action: "storefront_login.published",
+      targetType: "storefront_login",
+      targetId: tenant._id,
+      tenantId: tenant._id
+    });
+    res.json({ message: "Your customer login page is published." });
+  } catch (error) {
+    next(error);
+  }
+});
+
+api.post("/tenant/storefront-login/reset", authenticate, requireRole("business_owner"), async (req, res, next) => {
+  try {
+    const tenant = await Tenant.findById(tenantIdFromSession(req.user));
+    if (!tenant) return res.status(404).json({ error: "Company not found." });
+    tenant.loginPage.draft = defaultLoginPageSettings;
+    tenant.loginPage.published = defaultLoginPageSettings;
+    tenant.loginPage.isPublished = false;
+    tenant.markModified("loginPage");
+    await tenant.save();
+    await writeAudit({
+      actor: req.user,
+      action: "storefront_login.reset",
+      targetType: "storefront_login",
+      targetId: tenant._id,
+      tenantId: tenant._id
+    });
+    res.json({ draft: defaultLoginPageSettings, isPublished: false });
+  } catch (error) {
+    next(error);
+  }
+});
+
+api.get("/tenant/payment-gateways", authenticate, requireRole("business_owner"), async (req, res, next) => {
+  try {
+    const tenantId = tenantIdFromSession(req.user);
+    const items = await TenantPaymentProvider.find({ tenantId })
+      .select("provider apiKeyHint webhookHint commissionRate enabled createdAt updatedAt")
+      .sort({ createdAt: 1 })
+      .lean();
+    res.json({ items: items.map((item) => ({
+      ...item,
+      apiKeyConfigured: Boolean(item.apiKeyHint),
+      webhookConfigured: Boolean(item.webhookHint),
+      connectionStatus: item.enabled ? "requires_attention" : "disconnected"
+    })) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+api.patch("/tenant/payment-gateways/:provider", authenticate, requireRole("business_owner"), async (req, res, next) => {
+  try {
+    if (!tenantPaymentProviders.includes(req.params.provider)) {
+      return res.status(404).json({ error: "Payment provider not found." });
+    }
+    const input = parseOrRespond(tenantPaymentProviderSchema, req.body, res);
+    if (!input) return;
+    const tenantId = tenantIdFromSession(req.user);
+    const result = await saveTenantPaymentProvider({
+      tenantId,
+      provider: req.params.provider,
+      input,
+      actor: req.user
+    });
+    if (result.error) return res.status(result.status).json({ error: result.error });
+    res.json({ item: result.item });
+  } catch (error) {
+    next(error);
+  }
+});
+
+api.delete("/tenant/payment-gateways/:provider", authenticate, requireRole("business_owner"), async (req, res, next) => {
+  try {
+    if (!tenantPaymentProviders.includes(req.params.provider)) {
+      return res.status(404).json({ error: "Payment provider not found." });
+    }
+    const tenantId = tenantIdFromSession(req.user);
+    const credential = await TenantPaymentProvider.findOneAndDelete({
+      tenantId,
+      provider: req.params.provider
+    }).select("provider");
+    if (!credential) return res.status(404).json({ error: "Company payment provider not found." });
+    await writeAudit({
+      actor: req.user,
+      action: "tenant_payment_provider.deleted",
+      targetType: "payment_provider",
+      targetId: credential._id,
+      tenantId,
+      details: { provider: credential.provider }
+    });
+    res.json({ message: "Payment gateway credentials removed." });
   } catch (error) {
     next(error);
   }
@@ -2249,7 +2434,7 @@ api.patch("/admin/order-conversations/:id/status", authenticate, requireRole("su
   }
 });
 
-api.get("/store/:slug", authenticateCustomer, async (req, res, next) => {
+api.get("/store/:slug", async (req, res, next) => {
   try {
     const tenant = await findActiveTenantBySlug(req.params.slug);
     if (!tenant) return res.status(404).json({ error: "Store not found." });
@@ -2261,7 +2446,39 @@ api.get("/store/:slug", authenticateCustomer, async (req, res, next) => {
       isPublished: { $ne: false },
       $or: [{ sectionId: null }, { sectionId: { $in: activeSectionIds } }]
     }).sort({ createdAt: -1 }).lean();
-    res.json({ tenant, canonicalSlug: tenant.slug, sections, products });
+    const loginPage = tenant.loginPage?.isPublished
+      ? { ...defaultLoginPageSettings, ...(tenant.loginPage.published || {}) }
+      : { ...defaultLoginPageSettings, companyName: tenant.name };
+    res.json({
+      tenant: {
+        _id: tenant._id,
+        name: tenant.name,
+        slug: tenant.slug,
+        category: tenant.category,
+        description: tenant.description,
+        loginPage
+      },
+      canonicalSlug: tenant.slug,
+      sections,
+      products
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+api.get("/store/:slug/login-page", async (req, res, next) => {
+  try {
+    const tenant = await findActiveTenantBySlug(req.params.slug);
+    if (!tenant) return res.status(404).json({ error: "Store not found." });
+    const loginPage = tenant.loginPage?.isPublished
+      ? { ...defaultLoginPageSettings, ...(tenant.loginPage.published || {}) }
+      : { ...defaultLoginPageSettings, companyName: tenant.name };
+    res.json({
+      tenant: { name: tenant.name, slug: tenant.slug },
+      loginPage,
+      isPublished: Boolean(tenant.loginPage?.isPublished)
+    });
   } catch (error) {
     next(error);
   }

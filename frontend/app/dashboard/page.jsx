@@ -43,7 +43,7 @@ export default function TenantOverview() {
       </div>
       <div className="stack">
         <Panel title="Payment Gateway & Payouts" action={<span className="quiet-label">LOCKED</span>}>
-          <div className="payment-empty"><div className="payment-mark">₿</div><div><b>Payment provider not configured</b><p>Payments are never marked as paid from customer actions. Connect a supported merchant gateway and signed webhook before accepting online payments.</p></div><a className="button subtle compact" href="/dashboard/payments">Payment settings</a></div>
+          <div className="payment-empty"><div className="payment-mark">₿</div><div><b>Payment provider not configured</b><p>Payments are never marked as paid from customer actions. Connect a supported merchant gateway and signed webhook before accepting online payments.</p></div><a className="button subtle compact" href="/dashboard/payment-gateway-settings">Payment Gateway Settings</a></div>
           <div className="security-note"><ShieldCheck size={16} /><span>Unverified orders remain clearly marked as pending payment.</span></div>
         </Panel>
         <SupportSummary />
