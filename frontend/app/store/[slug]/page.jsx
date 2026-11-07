@@ -121,73 +121,68 @@ export default function StorefrontPage({ params }) {
     setChatToken("");
     setChat(null);
     setChatError("");
+    setCustomerAccount(null);
     setCustomer({ name: "", phone: "", email: "", address: "", location: "", instructions: "" });
-    api("/customer/auth/me")
-      .then((result) => {
-        if (!active) return;
-        setCustomerAccount(result.customer);
+    const initializeStorefront = async () => {
+      let account = null;
+      try {
+        const result = await api("/customer/auth/me");
+        account = result.customer;
+      } catch (reason) {
+        if (reason.status !== 401 && active) setAuthError(reason.message);
+      }
+      if (!active) return;
+      setCustomerAccount(account);
+      if (account) {
         setCustomer((current) => ({
           ...current,
-          name: current.name || result.customer.name,
-          email: result.customer.email
+          name: current.name || account.name,
+          email: account.email
         }));
-        const savedCart = window.sessionStorage.getItem(cartKey(slug));
-        if (savedCart) {
-          try {
-            const parsedCart = JSON.parse(savedCart);
-            setCart(Array.isArray(parsedCart) ? parsedCart : []);
-          } catch {
-            window.sessionStorage.removeItem(cartKey(slug));
-          }
+      }
+      const savedCart = window.sessionStorage.getItem(cartKey(slug));
+      if (savedCart) {
+        try {
+          const parsedCart = JSON.parse(savedCart);
+          setCart(Array.isArray(parsedCart) ? parsedCart : []);
+        } catch {
+          window.sessionStorage.removeItem(cartKey(slug));
         }
-        setCartReady(true);
-        idempotencyKey.current = "";
-        loadStore = async () => {
-          try {
-            await refreshStorefront(() => active);
-            if (!active) return;
-            setError("");
-          } catch (reason) {
-            if (active && reason.status === 401) {
-              const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-              window.location.replace(`/customer/login?returnTo=${encodeURIComponent(returnTo)}`);
-            } else if (active && !storeLoaded.current) {
-              setError(reason.message);
-            }
-          }
-        };
-        loadStore();
-        timer = window.setInterval(loadStore, 5000);
-        window.addEventListener("focus", loadStore);
-        onVisibilityChange = () => {
-          if (document.visibilityState === "visible") loadStore();
-        };
-        document.addEventListener("visibilitychange", onVisibilityChange);
-        const saved = window.localStorage.getItem(accessKey(slug));
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            if (parsed.accessToken) {
-              setChatToken(parsed.accessToken);
-              loadOrderChat(parsed.accessToken).catch(() => {
-                if (active) setChatError("Order chat access expired. Verify your order details to continue.");
-              });
-            }
-          } catch {
-            window.localStorage.removeItem(accessKey(slug));
-          }
+      }
+      setCartReady(true);
+      idempotencyKey.current = "";
+      loadStore = async () => {
+        try {
+          await refreshStorefront(() => active);
+          if (!active) return;
+          setError("");
+        } catch (reason) {
+          if (active && !storeLoaded.current) setError(reason.message);
         }
-      })
-      .catch((reason) => {
-        if (!active) return;
-        if (reason.status === 401) {
-          const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-          window.location.replace(`/customer/login?returnTo=${encodeURIComponent(returnTo)}`);
-        } else {
-          setAuthError(reason.message);
-          setError(reason.message);
+      };
+      loadStore();
+      timer = window.setInterval(loadStore, 5000);
+      window.addEventListener("focus", loadStore);
+      onVisibilityChange = () => {
+        if (document.visibilityState === "visible") loadStore();
+      };
+      document.addEventListener("visibilitychange", onVisibilityChange);
+      const saved = window.localStorage.getItem(accessKey(slug));
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.accessToken) {
+            setChatToken(parsed.accessToken);
+            loadOrderChat(parsed.accessToken).catch(() => {
+              if (active) setChatError("Order chat access expired. Verify your order details to continue.");
+            });
+          }
+        } catch {
+          window.localStorage.removeItem(accessKey(slug));
         }
-      });
+      }
+    };
+    initializeStorefront();
     return () => {
       active = false;
       if (timer) window.clearInterval(timer);
@@ -572,17 +567,18 @@ export default function StorefrontPage({ params }) {
             <label>Delivery location <span className="optional-text">Optional</span><input value={customer.location} onChange={(event) => setCustomer({ ...customer, location: event.target.value })} /></label>
             <label>Delivery address<input required minLength="5" value={customer.address} onChange={(event) => setCustomer({ ...customer, address: event.target.value })} /></label>
             <label>Delivery instructions <span className="optional-text">Optional</span><textarea rows="2" value={customer.instructions} onChange={(event) => setCustomer({ ...customer, instructions: event.target.value })} /></label>
-          </> : cart.length > 0 ? <section className="customer-auth-panel">
-            <h3>Sign in to continue</h3>
-            <p>Browsing is open to everyone. Sign in or create an account to place your order and track it later. New passwords should be 12 to 72 characters.</p>
+          </> : cart.length > 0 ? <section className={`customer-auth-panel ${store.tenant.loginPage?.formStyle === "minimal" ? "custom-login-minimal" : ""}`} style={{ "--login-primary": store.tenant.loginPage?.primaryColor || "#2563EB", "--login-secondary": store.tenant.loginPage?.secondaryColor || "#1F2937" }}>
+            {store.tenant.loginPage?.logo && <img className="store-login-logo" src={store.tenant.loginPage.logo} alt={`${store.tenant.loginPage.companyName || store.tenant.name} logo`} />}
+            <h3>{store.tenant.loginPage?.heading || `Sign in to ${store.tenant.name}`}</h3>
+            <p>{store.tenant.loginPage?.welcomeMessage || "Browsing is open to everyone. Sign in or create an account to place your order and track it later."} New passwords should be 12 to 72 characters.</p>
             {authMode === "register" && <label>Full name<input autoComplete="name" value={authName} onChange={(event) => setAuthName(event.target.value)} /></label>}
             <label>Email address<input type="email" autoComplete="email" value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} /></label>
             {authMode !== "forgot" && <label>Password<input type="password" maxLength="72" autoComplete={authMode === "register" ? "new-password" : "current-password"} value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} /></label>}
             {authError && <p className="inline-error" role="alert">{authError}</p>}
             {authMessage && <p className="customer-auth-message" role="status">{authMessage}</p>}
             {authMode === "forgot" ? <div className="customer-auth-actions"><button className="button primary full-width" type="button" disabled={authBusy} onClick={requestPasswordReset}>{authBusy ? "Sending…" : "Send password reset link"}</button><button type="button" className="text-link" onClick={() => setAuthMode("login")}>Back to sign in</button></div> : <div className="customer-auth-actions">
-              <button className="button primary full-width" type="button" disabled={authBusy} onClick={submitCustomerAuth}>{authBusy ? "Please wait…" : authMode === "register" ? "Create account" : "Sign in"}</button>
-              <button className="google-signin-button" type="button" onClick={continueWithGoogle}><span aria-hidden="true">G</span> Continue with Google</button>
+              <button className="button primary full-width customer-auth-primary" style={{ background: store.tenant.loginPage?.primaryColor || undefined, borderColor: store.tenant.loginPage?.primaryColor || undefined, color: "#fff" }} type="button" disabled={authBusy} onClick={submitCustomerAuth}>{authBusy ? "Please wait…" : authMode === "register" ? "Create account" : "Sign in"}</button>
+              <button className={`google-signin-button ${store.tenant.loginPage?.googleButtonStyle === "dark" ? "tenant-google-dark" : ""}`} type="button" onClick={continueWithGoogle}><span aria-hidden="true">G</span> Continue with Google</button>
               {authMode === "login" && <button type="button" className="text-link" onClick={() => setAuthMode("forgot")}>Forgot password?</button>}
               <button type="button" className="text-link" onClick={() => { setAuthMode(authMode === "register" ? "login" : "register"); setAuthError(""); setAuthMessage(""); }}>{authMode === "register" ? "Already have an account? Sign in" : "New customer? Create an account"}</button>
               <a className="text-link" href={`/customer/login?returnTo=${encodeURIComponent(`/store/${slug}`)}`}>Open customer sign-in page</a>

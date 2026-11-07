@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CircleDollarSign, Clock3, CreditCard, Search, ShieldCheck } from "lucide-react";
+import { CircleDollarSign, Clock3, CreditCard, Search, Settings, ShieldCheck } from "lucide-react";
 import { LoadingState, MetricCard, PageHeader, Panel, StatusPill } from "../../../components/AppShell";
-import { PaymentProviderCatalog } from "../../../components/PaymentProviderCatalog";
 import { api, money, shortDate } from "../../../lib/api";
 
 const paymentStatuses = ["all", "pending", "paid", "failed", "refunded"];
@@ -33,7 +32,7 @@ export default function PaymentsPage() {
   const metrics = data?.metrics;
 
   return <div className="page-content">
-    <PageHeader eyebrow="PAYMENTS & SALES" title="Payments" description="Review this company's order payment status and provider setup readiness." />
+    <PageHeader eyebrow="PAYMENTS & SALES" title="Payment activity" description="Review this company's order payment status." actions={<a className="button subtle" href="/dashboard/payment-gateway-settings"><Settings size={14} /> Payment Gateway Settings</a>} />
 
     <div className="payment-safety-banner"><ShieldCheck size={18} /><div><b>Online payment integration is not configured</b><p>Orders can be placed, but customers cannot pay through this app yet. Payment statuses below are order records, not live provider verification. Never share API keys or card details in chat or support notes.</p></div></div>
 
@@ -55,9 +54,5 @@ export default function PaymentsPage() {
       <div className="user-pagination"><button className="button subtle compact" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</button><span>Page {page} of {Math.max(data?.pages || 1, 1)} · {data?.total || 0} orders</span><button className="button subtle compact" disabled={page >= (data?.pages || 1)} onClick={() => setPage(page + 1)}>Next</button></div>
     </Panel>
 
-    <Panel title="Payment provider options" className="payment-readiness-panel">
-      <p className="payment-section-note">The platform will enable a provider only after a verified adapter is installed. Nothing is connected yet; contact your platform administrator when authorized merchant API documentation and staging credentials are available.</p>
-      <PaymentProviderCatalog />
-    </Panel>
   </div>;
 }

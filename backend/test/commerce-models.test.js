@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import mongoose from "mongoose";
-import { Conversation, CustomerAccount, Order, Product, ProductSection } from "../src/models.js";
+import { Conversation, CustomerAccount, Order, Product, ProductSection, Tenant } from "../src/models.js";
 
 test("customer accounts are unique by email and keep password hashes out of normal queries", () => {
   const customer = new CustomerAccount({
@@ -44,6 +44,30 @@ test("product sections and their dynamic variants validate with tenant associati
 
   product.variants[0].stock = -1;
   assert.ok(product.validateSync().errors["variants.0.stock"]);
+});
+
+test("storefront login branding is stored independently for each tenant", () => {
+  const tenantA = new Tenant({
+    name: "Company A",
+    slug: "company-a",
+    ownerName: "Owner A",
+    email: "owner-a@example.com",
+    loginPage: { draft: { companyName: "Company A", primaryColor: "#123456" } }
+  });
+  const tenantB = new Tenant({
+    name: "Company B",
+    slug: "company-b",
+    ownerName: "Owner B",
+    email: "owner-b@example.com",
+    loginPage: { draft: { companyName: "Company B", primaryColor: "#654321" } }
+  });
+
+  assert.equal(tenantA.validateSync(), undefined);
+  assert.equal(tenantB.validateSync(), undefined);
+  assert.equal(tenantA.loginPage.draft.companyName, "Company A");
+  assert.equal(tenantB.loginPage.draft.companyName, "Company B");
+  assert.notEqual(tenantA.loginPage.draft.primaryColor, tenantB.loginPage.draft.primaryColor);
+  assert.equal(tenantA.loginPage.isPublished, false);
 });
 
 test("orders preserve customer delivery and exact purchased variant snapshots", () => {

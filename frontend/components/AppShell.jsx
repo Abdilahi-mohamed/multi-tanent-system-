@@ -5,8 +5,8 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Activity, BarChart3, Bell, Boxes, BriefcaseBusiness, Building2, ChevronDown,
-  CircleHelp, ClipboardList, CreditCard, Grid2X2, LayoutDashboard, LogOut, MessageSquare,
-  Package, Search, Settings, Shield, ShoppingBag, Users, Wallet
+  CircleHelp, ClipboardList, CreditCard, ExternalLink, Grid2X2, LayoutDashboard, LogOut,
+  MessageSquare, Package, Palette, Search, Settings, Shield, ShoppingBag, Store, Users, Wallet
 } from "lucide-react";
 import { api, clearToken } from "../lib/api";
 
@@ -23,9 +23,10 @@ const adminSections = [
 const tenantSections = [
   { title: "STORE & OVERVIEW", items: [{ label: "Overview", href: "/dashboard", icon: Grid2X2 }, { label: "Sales Analytics", href: "/dashboard", icon: BarChart3 }] },
   { title: "CATALOG & STOCK", items: [{ label: "Products & Variants", href: "/dashboard/products", icon: Package }, { label: "Product Sections", href: "/dashboard/sections", icon: Boxes }] },
-  { title: "COMMERCE OPERATIONS", items: [{ label: "Orders & Fulfillment", href: "/dashboard/orders", icon: ShoppingBag }] },
+  { title: "COMMERCE OPERATIONS", items: [{ label: "Orders & Fulfillment", href: "/dashboard/orders", icon: ShoppingBag }, { label: "Payment Activity", href: "/dashboard/payments", icon: CreditCard }] },
   { title: "COMMUNICATIONS", items: [{ label: "Order Chat", href: "/dashboard/order-chat", icon: MessageSquare }, { label: "Customer Support / Chat", href: "/dashboard/chat", icon: CircleHelp }] },
-  { title: "STOREFRONT & SETTINGS", items: [{ label: "Public Storefront", href: "/dashboard/settings", icon: BriefcaseBusiness }, { label: "Payment Gateway", href: "/dashboard/payments", icon: CreditCard }, { label: "Store Settings", href: "/dashboard/settings", icon: Settings }] }
+  { title: "STOREFRONT", items: [{ label: "Storefront Management", href: "/dashboard/settings", icon: BriefcaseBusiness }, { label: "Public Storefront Link", href: "/dashboard/settings", icon: ExternalLink }, { label: "Share Storefront", href: "/dashboard/settings#storefront-share", icon: Store }, { label: "Customize Login Page", href: "/dashboard/login-page", icon: Palette }] },
+  { title: "PAYMENTS", items: [{ label: "Payment Gateway Settings", href: "/dashboard/payment-gateway-settings", icon: CreditCard }] }
 ];
 
 export function AppShell({ role, children }) {
@@ -38,7 +39,12 @@ export function AppShell({ role, children }) {
   const [error, setError] = useState("");
   const [queryString, setQueryString] = useState("");
   const [globalSearch, setGlobalSearch] = useState("");
-  const sections = role === "super_admin" ? adminSections : tenantSections;
+  const sections = role === "super_admin" ? adminSections : tenantSections.map((section) => ({
+    ...section,
+    items: section.items.map((item) => item.label === "Public Storefront Link" && tenant?.slug
+      ? { ...item, href: `/store/${encodeURIComponent(tenant.slug)}` }
+      : item)
+  }));
   const expectedRole = role === "tenant" ? "business_owner" : role;
 
   useEffect(() => {
@@ -101,7 +107,7 @@ export function AppShell({ role, children }) {
               const isActive = label === "Pending Approvals"
                 ? pathname === "/super-admin/businesses" && isPendingView
                 : pathname === href && !(label === "Create Business Account" && isPendingView);
-              return <a className={`nav-item ${isActive ? "active" : ""}`} href={href} key={label} title={label}>
+              return <a className={`nav-item ${isActive ? "active" : ""}`} href={href} key={label} title={label} target={label === "Public Storefront Link" ? "_blank" : undefined} rel={label === "Public Storefront Link" ? "noreferrer" : undefined}>
                 <Icon size={16} strokeWidth={1.8} /><span>{label}</span>
               </a>;
             })}

@@ -10,6 +10,26 @@ const variantAttributeSchema = new Schema(
   { _id: false }
 );
 
+const loginPageSettingsSchema = new Schema({
+  logo: { type: String, default: "" },
+  backgroundColor: { type: String, default: "#111827" },
+  backgroundImage: { type: String, default: "" },
+  primaryColor: { type: String, default: "#2563EB" },
+  secondaryColor: { type: String, default: "#1F2937" },
+  heading: { type: String, default: "Welcome back" },
+  welcomeMessage: { type: String, default: "Sign in to continue to our store." },
+  companyName: { type: String, default: "" },
+  layout: { type: String, enum: ["centered", "split"], default: "centered" },
+  formStyle: { type: String, enum: ["card", "minimal"], default: "card" },
+  googleButtonStyle: { type: String, enum: ["light", "dark"], default: "light" }
+}, { _id: false });
+
+const tenantLoginPageSchema = new Schema({
+  draft: { type: loginPageSettingsSchema, default: () => ({}) },
+  published: { type: loginPageSettingsSchema, default: () => ({}) },
+  isPublished: { type: Boolean, default: false }
+}, { _id: false });
+
 const tenantSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
@@ -20,6 +40,7 @@ const tenantSchema = new Schema(
     phone: { type: String, default: "" },
     category: { type: String, default: "Retail" },
     description: { type: String, default: "" },
+    loginPage: { type: tenantLoginPageSchema, default: () => ({}) },
     subscriptionFee: { type: Number, min: 0 },
     billingCurrency: { type: String, match: /^[A-Z]{3}$/ },
     billingFrequency: { type: String, enum: ["monthly", "yearly"] },
