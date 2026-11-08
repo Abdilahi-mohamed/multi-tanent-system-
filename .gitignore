@@ -2,6 +2,8 @@ node_modules/
 .next/
 coverage/
 .env
+.env.*
+!.env.example
 .env.local
 dist/
 npm-debug.log*

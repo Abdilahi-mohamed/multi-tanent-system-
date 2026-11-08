@@ -16,10 +16,22 @@ import {
 } from "./models.js";
 import { calculateSubtotal } from "./commerce.js";
 import { tenantIdFromSession, withSupportConversationScope, withTenantScope } from "./tenant-scope.js";
-import { encryptPaymentCredential } from "./payment-credentials.js";
+import {
+  encryptPaymentCredential,
+  isPaymentCredentialConfigurationError,
+  paymentCredentialHint
+} from "./payment-credentials.js";
 
 const app = express();
 const api = express.Router();
+
+function preventPaymentCredentialCaching(_req, res, next) {
+  res.set("Cache-Control", "no-store");
+  next();
+}
+
+api.use("/tenant/payment-gateways", preventPaymentCredentialCaching);
+api.use("/admin/payment-management/companies", preventPaymentCredentialCaching);
 
 app.disable("x-powered-by");
 app.use(helmet());
@@ -287,6 +299,7 @@ const paymentSetupQuerySchema = z.object({
 });
 const tenantPaymentProviderSchema = z.object({
   apiKey: z.string().trim().min(1).max(4096).optional(),
+  merchantToken: z.string().trim().min(1).max(4096).optional(),
   webhookSecret: z.string().trim().max(4096).optional(),
   commissionRate: z.coerce.number().finite().min(0).max(100),
   enabled: z.boolean()
@@ -614,20 +627,32 @@ async function writeAudit({ actor, action, targetType, targetId, tenantId = null
 
 async function saveTenantPaymentProvider({ tenantId, provider, input, actor }) {
   let existing = await TenantPaymentProvider.findOne({ tenantId, provider })
-    .select("+apiKeyCiphertext +apiKeyIv +apiKeyAuthTag +webhookCiphertext +webhookIv +webhookAuthTag");
+    .select("+apiKeyHint +merchantTokenHint +webhookHint +apiKeyHintSafe +merchantTokenHintSafe +webhookHintSafe");
   if (!existing && !input.apiKey) {
     return { error: "Enter the provider API key to add this payment method.", status: 400 };
   }
 
-  let encryptedApiKey;
-  let encryptedWebhook;
+  const credentials = [
+    { inputName: "apiKey", prefix: "apiKey", field: "secret_api_key" },
+    { inputName: "merchantToken", prefix: "merchantToken", field: "secret_merchant_token" },
+    { inputName: "webhookSecret", prefix: "webhook", field: "private_webhook_secret" }
+  ];
+  const encryptedCredentials = new Map();
   try {
-    if (input.apiKey) encryptedApiKey = encryptPaymentCredential(input.apiKey);
-    if (input.webhookSecret) encryptedWebhook = encryptPaymentCredential(input.webhookSecret);
+    for (const credential of credentials) {
+      const value = input[credential.inputName];
+      if (value) {
+        encryptedCredentials.set(credential.inputName, encryptPaymentCredential(value, {
+          tenantId,
+          provider,
+          field: credential.field
+        }));
+      }
+    }
   } catch (error) {
-    if (error.code !== "PAYMENT_CREDENTIAL_ENCRYPTION_KEY_MISSING") throw error;
+    if (!isPaymentCredentialConfigurationError(error)) throw error;
     return {
-      error: "Payment credential encryption is not configured. Set PAYMENT_CREDENTIAL_ENCRYPTION_KEY on the API server.",
+      error: "Payment credential encryption is not configured correctly on the API server.",
       status: 503
     };
   }
@@ -639,17 +664,25 @@ async function saveTenantPaymentProvider({ tenantId, provider, input, actor }) {
     enabled: input.enabled,
     updatedBy: actor._id
   };
-  if (encryptedApiKey) {
-    values.apiKeyCiphertext = encryptedApiKey.ciphertext;
-    values.apiKeyIv = encryptedApiKey.iv;
-    values.apiKeyAuthTag = encryptedApiKey.authTag;
-    values.apiKeyHint = input.apiKey.slice(-4);
-  }
-  if (encryptedWebhook) {
-    values.webhookCiphertext = encryptedWebhook.ciphertext;
-    values.webhookIv = encryptedWebhook.iv;
-    values.webhookAuthTag = encryptedWebhook.authTag;
-    values.webhookHint = input.webhookSecret.slice(-4);
+  for (const credential of credentials) {
+    const encrypted = encryptedCredentials.get(credential.inputName);
+    if (encrypted) {
+      values[`${credential.prefix}Ciphertext`] = encrypted.ciphertext;
+      values[`${credential.prefix}Iv`] = encrypted.iv;
+      values[`${credential.prefix}AuthTag`] = encrypted.authTag;
+      values[`${credential.prefix}KeyId`] = encrypted.keyId;
+      values[`${credential.prefix}Version`] = encrypted.version;
+      const hint = paymentCredentialHint(input[credential.inputName]);
+      values[`${credential.prefix}Hint`] = hint;
+      values[`${credential.prefix}HintSafe`] = Boolean(hint);
+      values[`${credential.prefix}Configured`] = true;
+    } else if (existing && (existing[`${credential.prefix}Configured`] || existing[`${credential.prefix}Hint`])) {
+      values[`${credential.prefix}Configured`] = true;
+      if (!existing[`${credential.prefix}HintSafe`]) {
+        values[`${credential.prefix}Hint`] = "";
+        values[`${credential.prefix}HintSafe`] = false;
+      }
+    }
   }
   if (existing) {
     Object.assign(existing, values);
@@ -665,20 +698,30 @@ async function saveTenantPaymentProvider({ tenantId, provider, input, actor }) {
     tenantId,
     details: { provider: existing.provider, enabled: existing.enabled }
   });
+  return { item: paymentProviderSummary(existing) };
+}
+
+export function paymentProviderSummary(item) {
+  const apiKeyConfigured = Boolean(item.apiKeyConfigured || item.apiKeyHint);
+  const merchantTokenConfigured = Boolean(item.merchantTokenConfigured || item.merchantTokenHint);
+  const webhookSecretConfigured = Boolean(item.webhookConfigured || item.webhookHint);
   return {
-    item: {
-      _id: existing._id,
-      provider: existing.provider,
-      apiKeyHint: existing.apiKeyHint,
-      webhookHint: existing.webhookHint,
-      apiKeyConfigured: Boolean(existing.apiKeyHint),
-      webhookConfigured: Boolean(existing.webhookCiphertext),
-      commissionRate: existing.commissionRate,
-      enabled: existing.enabled,
-      connectionStatus: existing.enabled ? "requires_attention" : "disconnected",
-      createdAt: existing.createdAt,
-      updatedAt: existing.updatedAt
-    }
+    _id: item._id,
+    provider: item.provider,
+    apiKeyHint: item.apiKeyHintSafe ? item.apiKeyHint : "",
+    merchantTokenHint: item.merchantTokenHintSafe ? item.merchantTokenHint : "",
+    webhookHint: item.webhookHintSafe ? item.webhookHint : "",
+    apiKeyStatus: apiKeyConfigured ? "configured" : "not_configured",
+    merchantTokenStatus: merchantTokenConfigured ? "configured" : "not_configured",
+    webhookSecretStatus: webhookSecretConfigured ? "configured" : "not_configured",
+    apiKeyConfigured,
+    merchantTokenConfigured,
+    webhookConfigured: webhookSecretConfigured,
+    commissionRate: item.commissionRate,
+    enabled: item.enabled,
+    connectionStatus: apiKeyConfigured ? "requires_attention" : "not_configured",
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt
   };
 }
 
@@ -1535,10 +1578,10 @@ api.get("/admin/payment-management/companies/:tenantId/providers", authenticate,
     const tenant = await Tenant.findById(req.params.tenantId).select("_id").lean();
     if (!tenant) return res.status(404).json({ error: "Company not found." });
     const items = await TenantPaymentProvider.find({ tenantId: tenant._id })
-      .select("provider apiKeyHint webhookHint commissionRate enabled createdAt updatedAt")
+      .select("provider apiKeyConfigured merchantTokenConfigured webhookConfigured +apiKeyHint +merchantTokenHint +webhookHint +apiKeyHintSafe +merchantTokenHintSafe +webhookHintSafe commissionRate enabled createdAt updatedAt")
       .sort({ createdAt: 1 })
       .lean();
-    res.json({ items });
+    res.json({ items: items.map(paymentProviderSummary) });
   } catch (error) {
     next(error);
   }
@@ -1882,15 +1925,10 @@ api.get("/tenant/payment-gateways", authenticate, requireRole("business_owner"),
   try {
     const tenantId = tenantIdFromSession(req.user);
     const items = await TenantPaymentProvider.find({ tenantId })
-      .select("provider apiKeyHint webhookHint commissionRate enabled createdAt updatedAt")
+      .select("provider apiKeyConfigured merchantTokenConfigured webhookConfigured +apiKeyHint +merchantTokenHint +webhookHint +apiKeyHintSafe +merchantTokenHintSafe +webhookHintSafe commissionRate enabled createdAt updatedAt")
       .sort({ createdAt: 1 })
       .lean();
-    res.json({ items: items.map((item) => ({
-      ...item,
-      apiKeyConfigured: Boolean(item.apiKeyHint),
-      webhookConfigured: Boolean(item.webhookHint),
-      connectionStatus: item.enabled ? "requires_attention" : "disconnected"
-    })) });
+    res.json({ items: items.map(paymentProviderSummary) });
   } catch (error) {
     next(error);
   }

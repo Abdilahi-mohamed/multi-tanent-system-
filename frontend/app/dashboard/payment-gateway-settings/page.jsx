@@ -14,7 +14,7 @@ const icons = {
   "Bank payments": Building2
 };
 
-const blankForm = () => ({ apiKey: "", webhookSecret: "", commissionRate: "2.5", enabled: false });
+const blankForm = () => ({ apiKey: "", merchantToken: "", webhookSecret: "", commissionRate: "2.5", enabled: false });
 
 export default function PaymentGatewaySettingsPage() {
   const [configured, setConfigured] = useState([]);
@@ -62,6 +62,7 @@ export default function PaymentGatewaySettingsPage() {
           ...form,
           commissionRate: Number(form.commissionRate),
           apiKey: form.apiKey || undefined,
+          merchantToken: form.merchantToken || undefined,
           webhookSecret: form.webhookSecret || undefined
         })
       });
@@ -100,17 +101,20 @@ export default function PaymentGatewaySettingsPage() {
         const Icon = icons[provider.category] || Building2;
         const saved = configured.find((item) => item.provider === provider.id);
         const isEditing = selected === provider.id;
-        const connectionStatus = saved?.connectionStatus || "disconnected";
-        return <Panel className="payment-gateway-panel" key={provider.id} title={provider.name} action={<span className={`gateway-status ${connectionStatus}`}><i />{connectionStatus === "connected" ? "Connected" : connectionStatus === "requires_attention" ? "Requires Attention" : "Disconnected"}</span>}>
+        const connectionStatus = saved?.connectionStatus || "not_configured";
+        const connectionLabel = connectionStatus === "connected" ? "Configured" : connectionStatus === "requires_attention" ? "Requires Attention" : "Not Configured";
+        return <Panel className="payment-gateway-panel" key={provider.id} title={provider.name} action={<span className={`gateway-status ${connectionStatus}`}><i />{connectionLabel}</span>}>
           <div className="payment-gateway-provider"><span className="payment-provider-icon"><Icon size={18} /></span><div><b>{provider.organization}</b><small>{provider.category}</small></div></div>
           <p className="payment-gateway-description">{provider.description}</p>
           {saved && <div className="payment-credential-summary">
-            <span>{saved.apiKeyConfigured ? `API key ·•••• ${saved.apiKeyHint}` : "No API key saved"}</span>
-            <span>{saved.webhookConfigured ? "Webhook secret saved" : "No webhook secret"}</span>
+            <span>{saved.apiKeyConfigured ? `API key · Configured ·••••••••••••${saved.apiKeyHint}` : "API key · Not Configured"}</span>
+            <span>{saved.merchantTokenConfigured ? `Merchant token · Configured ·••••••••••••${saved.merchantTokenHint}` : "Merchant token · Not Configured"}</span>
+            <span>{saved.webhookConfigured ? `Webhook secret · Configured ·••••••••••••${saved.webhookHint}` : "Webhook secret · Not Configured"}</span>
             <span>Commission · {saved.commissionRate}%</span>
           </div>}
           {isEditing ? <form className="payment-gateway-form" onSubmit={saveProvider}>
             <label>Merchant API key<input type="password" autoComplete="new-password" maxLength="4096" required={!saved} value={form.apiKey} onChange={(event) => setForm({ ...form, apiKey: event.target.value })} placeholder={saved ? "Leave blank to keep saved key" : "Enter merchant API key"} /></label>
+            <label>Merchant token<input type="password" autoComplete="new-password" maxLength="4096" value={form.merchantToken} onChange={(event) => setForm({ ...form, merchantToken: event.target.value })} placeholder={saved ? "Leave blank to keep saved token" : "Optional merchant token"} /></label>
             <label>Webhook secret<input type="password" autoComplete="new-password" maxLength="4096" value={form.webhookSecret} onChange={(event) => setForm({ ...form, webhookSecret: event.target.value })} placeholder={saved ? "Leave blank to keep saved secret" : "Optional webhook secret"} /></label>
             <label>Commission rate (%)<input type="number" min="0" max="100" step="0.01" required value={form.commissionRate} onChange={(event) => setForm({ ...form, commissionRate: event.target.value })} /></label>
             <label className="payment-enable-toggle"><input type="checkbox" checked={form.enabled} onChange={(event) => setForm({ ...form, enabled: event.target.checked })} /><span>Enable this provider when integration is ready</span></label>
