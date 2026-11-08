@@ -2434,7 +2434,7 @@ api.patch("/admin/order-conversations/:id/status", authenticate, requireRole("su
   }
 });
 
-api.get("/store/:slug", async (req, res, next) => {
+api.get("/store/:slug", authenticateCustomer, async (req, res, next) => {
   try {
     const tenant = await findActiveTenantBySlug(req.params.slug);
     if (!tenant) return res.status(404).json({ error: "Store not found." });
