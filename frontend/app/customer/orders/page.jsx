@@ -40,7 +40,7 @@ export default function CustomerOrdersPage() {
   async function signOut() {
     try {
       await api("/customer/auth/logout", { method: "POST" });
-      window.location.assign("/customer/login");
+      window.location.assign("/login?returnTo=%2Fcustomer%2Forders");
     } catch (reason) {
       setError(reason.message);
     }
@@ -52,7 +52,7 @@ export default function CustomerOrdersPage() {
       {orders[0]?.tenantId?.slug && <Link href={`/store/${encodeURIComponent(orders[0].tenantId.slug)}`} className="text-link"><ArrowLeft size={14} /> Continue shopping at {orders[0].tenantId.name}</Link>}
       <h1>My orders</h1>
       <p>Order history and fulfillment status for your customer account.</p>
-      {error && <div className="customer-orders-error" role="alert">{error}{error.includes("Sign in") && <Link href="/customer/login?returnTo=%2Fcustomer%2Forders">Sign in</Link>}<button type="button" className="text-link" onClick={loadOrders}>Try again</button></div>}
+      {error && <div className="customer-orders-error" role="alert">{error}{error.includes("Sign in") && <Link href="/login?returnTo=%2Fcustomer%2Forders">Sign in</Link>}<button type="button" className="text-link" onClick={loadOrders}>Try again</button></div>}
       {loading ? <div className="customer-orders-empty">Loading your orders…</div> : orders.length ? <div className="customer-orders-list">
         {orders.map((order) => <article className="customer-order-card" key={order._id}>
           <div className="customer-order-heading"><div><small>{order.tenantId?.name || "Store"} · {shortDate(order.createdAt)}</small><h2>{order.orderNumber}</h2></div><StatusPill tone={order.fulfillmentStatus}>{order.fulfillmentStatus.replaceAll("_", " ")}</StatusPill></div>

@@ -73,8 +73,11 @@ const customerAccountSchema = new Schema(
   {
     name: { type: String, required: true, trim: true, maxlength: 120 },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true, maxlength: 254 },
+    phone: { type: String, trim: true, default: "", maxlength: 40 },
     passwordHash: { type: String, select: false, default: "" },
     googleSub: { type: String, unique: true, sparse: true, select: false },
+    accountStatus: { type: String, enum: ["active", "suspended"], default: "active", index: true },
+    lastLoginAt: { type: Date, default: null },
     passwordResetTokenHash: { type: String, select: false, default: "" },
     passwordResetExpiresAt: { type: Date, select: false, default: null }
   },

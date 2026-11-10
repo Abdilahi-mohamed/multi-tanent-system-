@@ -98,7 +98,8 @@ const storeSupportRequestLimiter = rateLimit({
 const loginSchema = z.object({
   identifier: z.string().trim().min(3).max(254).optional(),
   username: z.string().trim().min(3).max(32).regex(/^[a-zA-Z0-9._-]+$/).optional(),
-  password: z.string().min(1).max(128)
+  password: z.string().min(1).max(128),
+  rememberMe: z.boolean().optional().default(false)
 }).refine((input) => input.identifier || input.username, {
   path: ["identifier"],
   message: "Enter your username or email address."
@@ -125,11 +126,13 @@ const customerPasswordSchema = z.string().min(12).max(72).refine(
 const customerRegistrationSchema = z.object({
   name: z.string().trim().min(2).max(120),
   email: z.string().trim().email().max(254).transform((email) => email.toLowerCase()),
-  password: customerPasswordSchema
+  password: customerPasswordSchema,
+  rememberMe: z.boolean().optional().default(true)
 });
 const customerLoginSchema = z.object({
   email: z.string().trim().email().max(254).transform((email) => email.toLowerCase()),
-  password: z.string().min(1).max(72).refine((password) => Buffer.byteLength(password, "utf8") <= 72)
+  password: z.string().min(1).max(72).refine((password) => Buffer.byteLength(password, "utf8") <= 72),
+  rememberMe: z.boolean().optional().default(true)
 });
 const customerForgotPasswordSchema = z.object({
   email: z.string().trim().email().max(254).transform((email) => email.toLowerCase()),
@@ -142,6 +145,9 @@ const customerResetPasswordSchema = z.object({
 }).refine((input) => input.password === input.confirmPassword, {
   path: ["confirmPassword"],
   message: "Passwords do not match."
+});
+const customerStatusSchema = z.object({
+  accountStatus: z.enum(["active", "suspended"])
 });
 const companySchema = z.object({
   name: z.string().trim().min(2).max(120),
@@ -422,12 +428,12 @@ function cookieValue(req, name) {
   return entry?.slice(name.length + 1) || "";
 }
 
-function setCustomerSession(res, customer) {
+function setCustomerSession(res, customer, rememberMe = true) {
   const token = jwt.sign({
     sub: customer._id.toString(),
     purpose: "customer_session"
-  }, process.env.JWT_SECRET, { expiresIn: "30d" });
-  res.cookie(customerSessionCookie, token, customerCookieOptions("/api/customer", customerSessionMaxAge));
+  }, process.env.JWT_SECRET, { expiresIn: rememberMe ? "30d" : "8h" });
+  res.cookie(customerSessionCookie, token, customerCookieOptions("/api/customer", rememberMe ? customerSessionMaxAge : undefined));
 }
 
 function clearCustomerSession(res) {
@@ -440,7 +446,8 @@ async function customerFromRequest(req) {
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
     if (payload.purpose !== "customer_session" || !mongoose.isValidObjectId(payload.sub)) return null;
-    return await CustomerAccount.findById(payload.sub).lean();
+    const customer = await CustomerAccount.findById(payload.sub).lean();
+    return customer?.accountStatus === "suspended" ? null : customer;
   } catch (error) {
     if (error.name === "JsonWebTokenError" || error.name === "TokenExpiredError") return null;
     throw error;
@@ -861,7 +868,7 @@ api.post("/auth/login", authLimiter, async (req, res, next) => {
       }
     }
     return res.json({
-      token: createToken(user),
+      token: createToken(user, input.rememberMe),
       user: { id: user._id, name: user.name, username: user.username || user.email.split("@")[0], role: user.role, tenantId: user.tenantId }
     });
   } catch (error) {
@@ -890,9 +897,10 @@ api.post("/customer/auth/register", registrationLimiter, async (req, res, next) 
     const customer = await CustomerAccount.create({
       name: input.name,
       email: input.email,
-      passwordHash: await bcrypt.hash(input.password, 12)
+      passwordHash: await bcrypt.hash(input.password, 12),
+      lastLoginAt: new Date()
     });
-    setCustomerSession(res, customer);
+    setCustomerSession(res, customer, input.rememberMe);
     return res.status(201).json({
       customer: { id: customer._id, name: customer.name, email: customer.email }
     });
@@ -910,7 +918,10 @@ api.post("/customer/auth/login", customerAuthLimiter, async (req, res, next) => 
     if (!customer?.passwordHash || !(await bcrypt.compare(input.password, customer.passwordHash))) {
       return res.status(401).json({ error: "Email or password is incorrect." });
     }
-    setCustomerSession(res, customer);
+    if (customer.accountStatus === "suspended") return res.status(403).json({ error: "This customer account is unavailable." });
+    customer.lastLoginAt = new Date();
+    await customer.save();
+    setCustomerSession(res, customer, input.rememberMe);
     return res.json({
       customer: { id: customer._id, name: customer.name, email: customer.email }
     });
@@ -995,11 +1006,13 @@ api.get("/customer/auth/google", (req, res) => {
   }
   const state = randomBytes(32).toString("base64url");
   const nonce = randomBytes(32).toString("base64url");
+  const rememberMe = req.query.rememberMe !== "false";
   const stateToken = jwt.sign({
     purpose: "customer_google_state",
     state,
     nonce,
-    returnTo
+    returnTo,
+    rememberMe
   }, process.env.JWT_SECRET, { expiresIn: "10m" });
   res.cookie(googleStateCookie, stateToken, customerCookieOptions("/api/customer/auth/google", 10 * 60 * 1000));
   const authorizationUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
@@ -1071,7 +1084,12 @@ api.get("/customer/auth/google/callback", async (req, res, next) => {
       }
       throw error;
     }
-    setCustomerSession(res, customer);
+    if (customer.accountStatus === "suspended") {
+      return res.redirect(customerReturnUrl(returnTo, "customerAuthError", "customer_unavailable"));
+    }
+    customer.lastLoginAt = new Date();
+    await customer.save();
+    setCustomerSession(res, customer, statePayload.rememberMe !== false);
     const destination = returnTo === "/" ? "/customer/orders" : returnTo;
     return res.redirect(new URL(destination, process.env.CLIENT_ORIGIN || "http://localhost:3000").toString());
   } catch (error) {
@@ -1329,6 +1347,68 @@ api.patch("/admin/businesses/:id", authenticate, requireRole("super_admin"), asy
   } catch (error) {
     if (error.code === 11000) return res.status(409).json({ error: "That store address is already in use." });
     return next(error);
+  }
+});
+
+api.get("/admin/customers", authenticate, requireRole("super_admin"), async (req, res, next) => {
+  try {
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+    const filter = {};
+    if (typeof req.query.search === "string" && req.query.search.trim()) {
+      const escaped = req.query.search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      filter.$or = [{ name: new RegExp(escaped, "i") }, { email: new RegExp(escaped, "i") }, { phone: new RegExp(escaped, "i") }];
+    }
+    if (req.query.status === "active") filter.accountStatus = { $ne: "suspended" };
+    else if (req.query.status === "suspended") filter.accountStatus = "suspended";
+    const [customers, total] = await Promise.all([
+      CustomerAccount.find(filter).select("name email phone accountStatus createdAt lastLoginAt")
+        .sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      CustomerAccount.countDocuments(filter)
+    ]);
+    const customerIds = customers.map((customer) => customer._id);
+    const [orderCounts, recentOrders] = await Promise.all([
+      Order.aggregate([
+        { $match: { customerId: { $in: customerIds } } },
+        { $group: { _id: "$customerId", orderCount: { $sum: 1 }, lastOrderAt: { $max: "$createdAt" } } }
+      ]),
+      Order.find({ customerId: { $in: customerIds } })
+        .select("+customerId orderNumber total createdAt tenantId")
+        .sort({ createdAt: -1 }).limit(1000).populate("tenantId", "name slug").lean()
+    ]);
+    const countsByCustomer = new Map(orderCounts.map((entry) => [String(entry._id), entry]));
+    const ordersByCustomer = new Map();
+    for (const order of recentOrders) {
+      const key = String(order.customerId);
+      const history = ordersByCustomer.get(key) || [];
+      if (history.length < 5) history.push(order);
+      ordersByCustomer.set(key, history);
+    }
+    const items = customers.map((customer) => ({
+      ...customer,
+      accountStatus: customer.accountStatus || "active",
+      orderCount: countsByCustomer.get(String(customer._id))?.orderCount || 0,
+      lastOrderAt: countsByCustomer.get(String(customer._id))?.lastOrderAt || null,
+      orders: ordersByCustomer.get(String(customer._id)) || []
+    }));
+    res.json({ items, page, pages: Math.ceil(total / limit), total });
+  } catch (error) {
+    next(error);
+  }
+});
+
+api.patch("/admin/customers/:id/status", authenticate, requireRole("super_admin"), async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid customer ID." });
+    const input = parseOrRespond(customerStatusSchema, req.body, res);
+    if (!input) return;
+    const customer = await CustomerAccount.findByIdAndUpdate(req.params.id, input, { new: true, runValidators: true })
+      .select("name email phone accountStatus createdAt lastLoginAt").lean();
+    if (!customer) return res.status(404).json({ error: "Customer account not found." });
+    await writeAudit({ actor: req.user, action: "customer.account_status_updated", targetType: "customer", targetId: customer._id, details: { accountStatus: customer.accountStatus } });
+    res.json({ customer });
+  } catch (error) {
+    next(error);
   }
 });
 
@@ -1824,6 +1904,72 @@ api.patch("/tenant/products/:id/archive", authenticate, requireRole("business_ow
     if (!product) return res.status(404).json({ error: "Product not found." });
     await writeAudit({ actor: req.user, action: "product.archived", targetType: "product", targetId: product._id, tenantId: product.tenantId });
     res.json({ product });
+  } catch (error) {
+    next(error);
+  }
+});
+
+api.get("/tenant/customers", authenticate, requireRole("business_owner"), async (req, res, next) => {
+  try {
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+    const escapedSearch = typeof req.query.search === "string" && req.query.search.trim()
+      ? req.query.search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+      : "";
+    const accountFilters = {};
+    if (escapedSearch) accountFilters.$or = [
+      { "customer.name": new RegExp(escapedSearch, "i") },
+      { "customer.email": new RegExp(escapedSearch, "i") },
+      { "customer.phone": new RegExp(escapedSearch, "i") }
+    ];
+    if (req.query.status === "active") accountFilters["customer.accountStatus"] = { $ne: "suspended" };
+    else if (req.query.status === "suspended") accountFilters["customer.accountStatus"] = "suspended";
+    const tenantId = tenantIdFromSession(req.user);
+    const [result] = await Order.aggregate([
+      { $match: { tenantId, customerId: { $ne: null } } },
+      { $sort: { createdAt: -1 } },
+      { $group: { _id: "$customerId", orderCount: { $sum: 1 }, lastOrderAt: { $first: "$createdAt" }, recentPhone: { $first: "$customer.phone" } } },
+      { $lookup: { from: CustomerAccount.collection.name, localField: "_id", foreignField: "_id", as: "customer" } },
+      { $unwind: "$customer" },
+      { $match: accountFilters },
+      { $sort: { lastOrderAt: -1 } },
+      { $facet: {
+        items: [
+          { $skip: (page - 1) * limit },
+          { $limit: limit },
+          { $project: {
+            _id: "$customer._id",
+            name: "$customer.name",
+            email: "$customer.email",
+            phone: { $cond: [{ $eq: ["$customer.phone", ""] }, "$recentPhone", "$customer.phone"] },
+            accountStatus: { $ifNull: ["$customer.accountStatus", "active"] },
+            createdAt: "$customer.createdAt",
+            lastLoginAt: "$customer.lastLoginAt",
+            orderCount: 1,
+            lastOrderAt: 1
+          } }
+        ],
+        total: [{ $count: "count" }]
+      } }
+    ]);
+    const customers = result?.items || [];
+    const customerIds = customers.map((customer) => customer._id);
+    const orders = customerIds.length ? await Order.find({ tenantId, customerId: { $in: customerIds } })
+      .select("+customerId orderNumber total createdAt")
+      .sort({ createdAt: -1 }).limit(1000).lean() : [];
+    const ordersByCustomer = new Map();
+    for (const order of orders) {
+      const key = String(order.customerId);
+      const history = ordersByCustomer.get(key) || [];
+      if (history.length < 5) history.push(order);
+      ordersByCustomer.set(key, history);
+    }
+    const items = customers.map((customer) => ({
+      ...customer,
+      orders: ordersByCustomer.get(String(customer._id)) || []
+    }));
+    const total = result?.total?.[0]?.count || 0;
+    res.json({ items, page, pages: Math.ceil(total / limit), total });
   } catch (error) {
     next(error);
   }
@@ -2472,7 +2618,7 @@ api.patch("/admin/order-conversations/:id/status", authenticate, requireRole("su
   }
 });
 
-api.get("/store/:slug", authenticateCustomer, async (req, res, next) => {
+api.get("/store/:slug", async (req, res, next) => {
   try {
     const tenant = await findActiveTenantBySlug(req.params.slug);
     if (!tenant) return res.status(404).json({ error: "Store not found." });
@@ -2805,6 +2951,7 @@ api.post("/store/:slug/orders", authLimiter, authenticateCustomer, async (req, r
       total: subtotal
     });
     createdOrder = order;
+    await CustomerAccount.updateOne({ _id: req.customer._id }, { $set: { phone: input.customer.phone } });
     const conversation = await Conversation.create({
       tenantId: tenant._id,
       orderId: order._id,

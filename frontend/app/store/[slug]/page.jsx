@@ -123,15 +123,8 @@ export default function StorefrontPage({ params }) {
         const result = await api("/customer/auth/me");
         account = result.customer;
       } catch (reason) {
-        if (reason.status === 401 && active) {
-          const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-          window.location.replace(`/customer/login?returnTo=${encodeURIComponent(returnTo)}`);
-          return;
-        }
-        if (active) {
+        if (reason.status !== 401 && active) {
           setAuthError(reason.message);
-          setError(reason.message);
-          return;
         }
       }
       if (!active) return;
@@ -362,7 +355,7 @@ export default function StorefrontPage({ params }) {
   function continueToCustomerLogin() {
     if (cart.length) window.sessionStorage.setItem(cartKey(slug), JSON.stringify(cart));
     const returnTo = `/store/${encodeURIComponent(slug)}?checkout=1`;
-    window.location.assign(`/customer/login?returnTo=${encodeURIComponent(returnTo)}`);
+    window.location.assign(`/login?returnTo=${encodeURIComponent(returnTo)}`);
   }
 
   async function signOutCustomer() {
@@ -371,7 +364,7 @@ export default function StorefrontPage({ params }) {
     try {
       await api("/customer/auth/logout", { method: "POST" });
       setCustomerAccount(null);
-      window.location.assign(`/customer/login?returnTo=${encodeURIComponent(`/store/${slug}`)}`);
+      window.location.assign(`/login?returnTo=${encodeURIComponent(`/store/${slug}`)}`);
     } catch (reason) {
       setAuthError(reason.message);
     } finally {
@@ -534,7 +527,7 @@ export default function StorefrontPage({ params }) {
             {authError && <p className="inline-error" role="alert">{authError}</p>}
             <p className="payment-method-note">Your cart will be saved while you sign in. Email/password and Google sign-in are available on your company's customer login page.</p>
             <button type="button" className="button primary full-width customer-auth-primary" style={{ background: store.tenant.loginPage?.primaryColor || undefined, borderColor: store.tenant.loginPage?.primaryColor || undefined, color: "#fff" }} onClick={continueToCustomerLogin}>Sign in to continue</button>
-            <a className="text-link" href={`/customer/login?returnTo=${encodeURIComponent(`/store/${slug}?checkout=1`)}`}>Open customer login page</a>
+            <a className="text-link" href={`/login?returnTo=${encodeURIComponent(`/store/${slug}?checkout=1`)}`}>Open customer login page</a>
           </section> : <p className="payment-method-note">Add an item to your cart to continue to checkout.</p>}
           {orderError && <p className="inline-error">{orderError}</p>}
           {customerAccount && <button className="button primary full-width" type="submit" disabled={busy || cart.length === 0}>{busy ? "Placing order…" : `Place order · ${money(cartTotal)} · payment pending`}</button>}
