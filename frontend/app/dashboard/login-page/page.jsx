@@ -187,7 +187,7 @@ export default function LoginPageCustomizer() {
             <button type="button" className="button primary compact" onClick={publish} disabled={busy}><Send size={14} /> {busy ? "Publishing…" : "Publish Login Page"}</button>
             <button type="button" className="button subtle compact" onClick={reset} disabled={busy}><RotateCcw size={14} /> Reset to Default</button>
           </div>
-          {slug && <a className="text-link login-preview-store-link" href={`/customer/login?returnTo=${encodeURIComponent(`/store/${slug}`)}`} target="_blank" rel="noreferrer"><Smartphone size={13} /> Open the published customer login page</a>}
+          {slug && <a className="text-link login-preview-store-link" href={`/login?returnTo=${encodeURIComponent(`/store/${slug}`)}`} target="_blank" rel="noreferrer"><Smartphone size={13} /> Open the published customer login page</a>}
         </Panel>
       </div>
       <Panel title="Live preview" className="login-live-preview-panel"><p className="payment-section-note">Preview updates as you make changes. This draft is not visible to customers until published.</p><LoginPreview settings={settings} tenantName={tenantName} /></Panel>

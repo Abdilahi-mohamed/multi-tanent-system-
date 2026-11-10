@@ -59,7 +59,7 @@ export default function ResetCustomerPasswordPage() {
         {message && <div className="customer-auth-message" role="status">{message}</div>}
         <button className="button primary full-width" type="submit" disabled={busy}>{busy ? "Saving…" : "Reset password"}</button>
       </form>}
-      {message && <Link className="button subtle full-width" href={`/customer/login?returnTo=${encodeURIComponent(returnTo)}`}>Go to sign in</Link>}
+      {message && <Link className="button subtle full-width" href={`/login?returnTo=${encodeURIComponent(returnTo)}`}>Go to sign in</Link>}
     </section>
   </main>;
 }

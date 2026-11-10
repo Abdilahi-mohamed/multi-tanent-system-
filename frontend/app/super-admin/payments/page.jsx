@@ -15,7 +15,7 @@ const companyPaymentProviders = [
   { id: "card", name: "Card Payment", organization: "Visa / Mastercard", logo: "card" },
   { id: "bank_transfer", name: "Bank payments", organization: "Bank transfer", logo: "bank" }
 ];
-const emptyProviderForm = { provider: "zaad", apiKey: "", webhookSecret: "", commissionRate: "2.5", enabled: false };
+const emptyProviderForm = { provider: "zaad", apiKey: "", merchantToken: "", webhookSecret: "", commissionRate: "2.5", enabled: false };
 
 function ProviderLogo({ provider }) {
   const config = companyPaymentProviders.find((item) => item.id === provider);
@@ -119,6 +119,7 @@ export default function PlatformPaymentsPage() {
     setProviderForm({
       provider: provider.provider,
       apiKey: "",
+      merchantToken: "",
       webhookSecret: "",
       commissionRate: String(provider.commissionRate),
       enabled: provider.enabled
@@ -140,6 +141,7 @@ export default function PlatformPaymentsPage() {
           method: "PATCH",
           body: JSON.stringify({
             apiKey: providerForm.apiKey || undefined,
+            merchantToken: providerForm.merchantToken || undefined,
             webhookSecret: providerForm.webhookSecret || undefined,
             commissionRate: Number(providerForm.commissionRate),
             enabled: providerForm.enabled
@@ -236,15 +238,17 @@ export default function PlatformPaymentsPage() {
         <div className="payment-dialog-content">
           {providerSuccess && <p className="payment-setup-success" role="status">{providerSuccess}</p>}
           {providerError && <p className="inline-error payment-dialog-error" role="alert">{providerError}</p>}
-          <div className="payment-company-provider-table table-wrap"><table><thead><tr><th>PROVIDER</th><th>STATUS</th><th>API KEY</th><th>COMMISSION</th><th>ACTIONS</th></tr></thead><tbody>
+          <div className="payment-company-provider-table table-wrap"><table><thead><tr><th>PROVIDER</th><th>STATUS</th><th>API KEY</th><th>MERCHANT TOKEN</th><th>WEBHOOK SECRET</th><th>COMMISSION</th><th>ACTIONS</th></tr></thead><tbody>
             {companyProviders.map((provider) => <tr key={provider.provider}>
               <td><div className="company-provider-name"><ProviderLogo provider={provider.provider} /><div><b>{companyPaymentProviders.find((item) => item.id === provider.provider)?.name || provider.provider}</b><small>{companyPaymentProviders.find((item) => item.id === provider.provider)?.organization}</small></div></div></td>
-              <td><StatusPill tone={provider.enabled ? "active" : "pending"}>{provider.enabled ? "Active" : "Disabled"}</StatusPill></td>
-              <td>••••••••{provider.apiKeyHint}</td>
+              <td><StatusPill tone={provider.connectionStatus === "requires_attention" ? "pending" : "neutral"}>{provider.connectionStatus === "requires_attention" ? "Requires Attention" : "Not Configured"}</StatusPill><small className="table-subline">{provider.enabled ? "Enabled" : "Disabled"}</small></td>
+              <td>{provider.apiKeyConfigured ? `Configured ·••••••••••••${provider.apiKeyHint}` : "Not Configured"}</td>
+              <td>{provider.merchantTokenConfigured ? `Configured ·••••••••••••${provider.merchantTokenHint}` : "Not Configured"}</td>
+              <td>{provider.webhookConfigured ? `Configured ·••••••••••••${provider.webhookHint}` : "Not Configured"}</td>
               <td>{provider.commissionRate}%</td>
               <td><div className="row-actions"><button className="icon-button" aria-label={`Edit ${provider.provider}`} title="Edit provider" onClick={() => editCompanyProvider(provider)}><Pencil size={14} /></button><button className="icon-button danger-action" aria-label={`Remove ${provider.provider}`} title="Remove provider" onClick={() => removeCompanyProvider(provider.provider)}><Trash2 size={14} /></button></div></td>
             </tr>)}
-            {!providerLoading && !companyProviders.length && <tr><td colSpan="5" className="empty-table">No payment providers configured for this company.</td></tr>}
+            {!providerLoading && !companyProviders.length && <tr><td colSpan="7" className="empty-table">No payment providers configured for this company.</td></tr>}
           </tbody></table></div>
           {providerLoading && <LoadingState />}
           <form className="payment-provider-form" onSubmit={saveCompanyProvider}>
@@ -260,6 +264,7 @@ export default function PlatformPaymentsPage() {
               })}
             </fieldset>
             <label>API key<input required={!editingProvider} type="password" autoComplete="new-password" maxLength="4096" value={providerForm.apiKey} onChange={(event) => setProviderForm({ ...providerForm, apiKey: event.target.value })} placeholder={editingProvider ? "Leave blank to keep the saved key" : "Enter provider API key"} /></label>
+            <label>Merchant token (optional)<input type="password" autoComplete="new-password" maxLength="4096" value={providerForm.merchantToken} onChange={(event) => setProviderForm({ ...providerForm, merchantToken: event.target.value })} placeholder={editingProvider ? "Leave blank to keep the saved token" : "Enter merchant token"} /></label>
             <label>Webhook secret (optional)<input type="password" autoComplete="new-password" maxLength="4096" value={providerForm.webhookSecret} onChange={(event) => setProviderForm({ ...providerForm, webhookSecret: event.target.value })} placeholder={editingProvider ? "Leave blank to keep the saved secret" : "Enter webhook secret"} /></label>
             <label>Commission rate (%)<input required type="number" min="0" max="100" step="0.01" value={providerForm.commissionRate} onChange={(event) => setProviderForm({ ...providerForm, commissionRate: event.target.value })} /></label>
             <label className="payment-enable-toggle"><input type="checkbox" checked={providerForm.enabled} onChange={(event) => setProviderForm({ ...providerForm, enabled: event.target.checked })} /><span>Enable provider</span></label>

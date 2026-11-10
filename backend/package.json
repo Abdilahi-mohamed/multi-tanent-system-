@@ -7,6 +7,7 @@
     "dev": "node --watch server.js",
     "start": "node server.js",
     "seed": "node scripts/seed.js",
+    "rotate-payment-credentials": "node scripts/rotate-payment-credentials.js",
     "test": "node --test"
   },
   "dependencies": {

@@ -13,7 +13,7 @@ import { api, clearToken } from "../lib/api";
 const adminSections = [
   { title: "OVERVIEW", items: [{ label: "Platform Overview", href: "/super-admin/overview", icon: LayoutDashboard }, { label: "Analytics & Reports", href: "/super-admin/overview", icon: BarChart3 }] },
   { title: "BUSINESS MANAGEMENT", items: [{ label: "Create Business Account", href: "/super-admin/businesses", icon: Building2 }, { label: "Pending Approvals", href: "/super-admin/businesses?status=pending", icon: ClipboardList }, { label: "Business Activity", href: "/super-admin/audit", icon: Activity }] },
-  { title: "USERS & ACCESS", items: [{ label: "User Management", href: "/super-admin/users", icon: Users }, { label: "Security Logs", href: "/super-admin/audit", icon: Shield }] },
+  { title: "USERS & ACCESS", items: [{ label: "User Management", href: "/super-admin/users", icon: Users }, { label: "Customers", href: "/super-admin/customers", icon: Users }, { label: "Security Logs", href: "/super-admin/audit", icon: Shield }] },
   { title: "PLANS & BILLING", items: [{ label: "Platform Revenue", href: "/super-admin/settings", icon: Wallet }] },
   { title: "COMMERCE MONITORING", items: [{ label: "Payment Management", href: "/super-admin/payments", icon: Boxes }] },
   { title: "COMMUNICATION", items: [{ label: "Support Inbox", href: "/super-admin/support", icon: CircleHelp }, { label: "Store Customer Support", href: "/super-admin/customer-support", icon: MessageSquare }] },
@@ -23,7 +23,7 @@ const adminSections = [
 const tenantSections = [
   { title: "STORE & OVERVIEW", items: [{ label: "Overview", href: "/dashboard", icon: Grid2X2 }, { label: "Sales Analytics", href: "/dashboard", icon: BarChart3 }] },
   { title: "CATALOG & STOCK", items: [{ label: "Products & Variants", href: "/dashboard/products", icon: Package }, { label: "Product Sections", href: "/dashboard/sections", icon: Boxes }] },
-  { title: "COMMERCE OPERATIONS", items: [{ label: "Orders & Fulfillment", href: "/dashboard/orders", icon: ShoppingBag }, { label: "Payment Activity", href: "/dashboard/payments", icon: CreditCard }] },
+  { title: "COMMERCE OPERATIONS", items: [{ label: "Orders & Fulfillment", href: "/dashboard/orders", icon: ShoppingBag }, { label: "Customers", href: "/dashboard/customers", icon: Users }, { label: "Payment Activity", href: "/dashboard/payments", icon: CreditCard }] },
   { title: "COMMUNICATIONS", items: [{ label: "Order Chat", href: "/dashboard/order-chat", icon: MessageSquare }, { label: "Customer Support / Chat", href: "/dashboard/chat", icon: CircleHelp }] },
   { title: "STOREFRONT", items: [{ label: "Storefront Management", href: "/dashboard/settings", icon: BriefcaseBusiness }] },
   { title: "PAYMENTS", items: [{ label: "Payment Gateway Settings", href: "/dashboard/payment-gateway-settings", icon: CreditCard }] }

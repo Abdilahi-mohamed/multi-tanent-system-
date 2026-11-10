@@ -12,9 +12,18 @@ test("customer accounts are unique by email and keep password hashes out of norm
 
   assert.equal(customer.validateSync(), undefined);
   assert.equal(customer.email, "customer@example.com");
+  assert.equal(customer.phone, "");
+  assert.equal(customer.accountStatus, "active");
+  assert.equal(customer.lastLoginAt, null);
   assert.equal(CustomerAccount.schema.path("email").options.unique, true);
   assert.equal(CustomerAccount.schema.path("passwordHash").options.select, false);
   assert.equal(CustomerAccount.schema.path("googleSub").options.select, false);
+  assert.equal(CustomerAccount.schema.path("role"), undefined);
+
+  customer.accountStatus = "suspended";
+  assert.equal(customer.validateSync(), undefined);
+  customer.accountStatus = "super_admin";
+  assert.ok(customer.validateSync().errors.accountStatus);
 });
 
 test("product sections and their dynamic variants validate with tenant associations", () => {
