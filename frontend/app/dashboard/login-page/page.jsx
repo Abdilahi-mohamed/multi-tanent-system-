@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ImagePlus, Monitor, RotateCcw, Save, Send, Smartphone, X } from "lucide-react";
+import { ImagePlus, Monitor, RotateCcw, Save, Smartphone, X } from "lucide-react";
 import { PageHeader, Panel } from "../../../components/AppShell";
 import { api } from "../../../lib/api";
 import { defaultLoginPageSettings } from "../../../lib/login-page";
@@ -110,27 +110,9 @@ export default function LoginPageCustomizer() {
     try {
       const result = await api("/tenant/storefront-login", { method: "PATCH", body: JSON.stringify(settings) });
       setSettings({ ...defaultLoginPageSettings, ...result.draft });
-      setPublished(result.isPublished);
-      setMessage("Changes saved. Publish the page when you are ready for customers to see them.");
-      return true;
-    } catch (reason) {
-      setError(reason.message);
-      return false;
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function publish() {
-    setBusy(true);
-    setError("");
-    setMessage("");
-    try {
-      const result = await api("/tenant/storefront-login", { method: "PATCH", body: JSON.stringify(settings) });
-      setSettings({ ...defaultLoginPageSettings, ...result.draft });
       await api("/tenant/storefront-login/publish", { method: "POST", body: JSON.stringify({}) });
       setPublished(true);
-      setMessage("Your customized customer login page is live.");
+      setMessage("Changes saved and published. Your customers can see the updated login page.");
     } catch (reason) {
       setError(reason.message);
     } finally {
@@ -158,7 +140,7 @@ export default function LoginPageCustomizer() {
   if (loading) return <div className="page-content"><p className="empty-state">Loading your login page settings…</p></div>;
 
   return <div className="page-content">
-    <PageHeader eyebrow="STOREFRONT" title="Customize Login Page" description="Create a branded sign-in experience for customers. Changes stay private until you publish them." actions={<span className={`status-pill ${published ? "active" : "pending"}`}>{published ? "Published" : "Draft"}</span>} />
+    <PageHeader eyebrow="STOREFRONT" title="Customize Login Page" description="Create a branded sign-in experience for customers. Save your changes to publish them to your storefront login page." actions={<span className={`status-pill ${published ? "active" : "pending"}`}>{published ? "Published" : "Draft"}</span>} />
     {error && <p className="inline-error" role="alert">{error}</p>}
     {message && <p className="customer-auth-message" role="status">{message}</p>}
     <div className="login-customizer-layout">
@@ -183,14 +165,13 @@ export default function LoginPageCustomizer() {
           </div>
           <div className="login-customizer-actions">
             <button type="button" className="button subtle compact" onClick={() => setPreviewOpen(true)}><Monitor size={14} /> Preview Login Page</button>
-            <button type="button" className="button subtle compact" onClick={save} disabled={busy}><Save size={14} /> Save Changes</button>
-            <button type="button" className="button primary compact" onClick={publish} disabled={busy}><Send size={14} /> {busy ? "Publishing…" : "Publish Login Page"}</button>
+            <button type="button" className="button primary compact" onClick={save} disabled={busy}><Save size={14} /> {busy ? "Saving & publishing…" : "Save & Publish"}</button>
             <button type="button" className="button subtle compact" onClick={reset} disabled={busy}><RotateCcw size={14} /> Reset to Default</button>
           </div>
-          {slug && <a className="text-link login-preview-store-link" href={`/login?returnTo=${encodeURIComponent(`/store/${slug}`)}`} target="_blank" rel="noreferrer"><Smartphone size={13} /> Open the published customer login page</a>}
+          {slug && <a className="text-link login-preview-store-link" href={`/login?returnTo=${encodeURIComponent(`/store/${slug}`)}`} target="_blank" rel="noreferrer"><Smartphone size={13} /> Open the customer login page</a>}
         </Panel>
       </div>
-      <Panel title="Live preview" className="login-live-preview-panel"><p className="payment-section-note">Preview updates as you make changes. This draft is not visible to customers until published.</p><LoginPreview settings={settings} tenantName={tenantName} /></Panel>
+      <Panel title="Live preview" className="login-live-preview-panel"><p className="payment-section-note">Preview updates as you make changes. Save &amp; Publish to make the latest design visible to customers.</p><LoginPreview settings={settings} tenantName={tenantName} /></Panel>
     </div>
     {previewOpen && <div className="login-preview-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPreviewOpen(false); }}><section className="login-preview-modal" role="dialog" aria-modal="true" aria-label="Login page preview"><button type="button" className="icon-button login-preview-close" aria-label="Close preview" onClick={() => setPreviewOpen(false)}><X size={16} /></button><LoginPreview settings={settings} tenantName={tenantName} /></section></div>}
   </div>;
