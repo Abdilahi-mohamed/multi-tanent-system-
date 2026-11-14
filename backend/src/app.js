@@ -433,11 +433,13 @@ function setCustomerSession(res, customer, rememberMe = true) {
     sub: customer._id.toString(),
     purpose: "customer_session"
   }, process.env.JWT_SECRET, { expiresIn: rememberMe ? "30d" : "8h" });
-  res.cookie(customerSessionCookie, token, customerCookieOptions("/api/customer", rememberMe ? customerSessionMaxAge : undefined));
+  res.clearCookie(customerSessionCookie, customerCookieOptions("/api/customer"));
+  res.cookie(customerSessionCookie, token, customerCookieOptions("/api", rememberMe ? customerSessionMaxAge : undefined));
 }
 
 function clearCustomerSession(res) {
   res.clearCookie(customerSessionCookie, customerCookieOptions("/api/customer"));
+  res.clearCookie(customerSessionCookie, customerCookieOptions("/api"));
 }
 
 async function customerFromRequest(req) {
@@ -2618,7 +2620,7 @@ api.patch("/admin/order-conversations/:id/status", authenticate, requireRole("su
   }
 });
 
-api.get("/store/:slug", async (req, res, next) => {
+api.get("/store/:slug", authenticateCustomer, async (req, res, next) => {
   try {
     const tenant = await findActiveTenantBySlug(req.params.slug);
     if (!tenant) return res.status(404).json({ error: "Store not found." });
