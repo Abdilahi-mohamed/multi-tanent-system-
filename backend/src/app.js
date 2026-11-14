@@ -539,14 +539,126 @@ async function findOrCreateGoogleCustomer(claims) {
   });
 }
 
-function createOrderChatToken(conversation, customerId = null) {
+function createOrderChatToken(conversation, customerId = null, orderId = conversation.orderId) {
   return jwt.sign({
     purpose: "order_chat",
     conversationId: conversation._id.toString(),
-    orderId: conversation.orderId.toString(),
+    orderId: orderId.toString(),
     tenantId: conversation.tenantId.toString(),
     ...(customerId ? { customerId: customerId.toString() } : {})
   }, process.env.JWT_SECRET, { expiresIn: "30d" });
+}
+
+async function findCustomerOrderConversation({ tenantId, order, customer, customerName, customerPhone }) {
+  const newOrderMessage = {
+    sender: "customer",
+    senderName: customerName,
+    orderId: order._id,
+    createdAt: new Date(),
+    body: `Order ${order.orderNumber} placed. Payment is awaiting verification.`
+  };
+
+  const existingConversation = await Conversation.findOne({ tenantId, customerId: customer._id });
+  if (existingConversation) {
+    const updated = await Conversation.findOneAndUpdate(
+      { _id: existingConversation._id, tenantId },
+      {
+        $set: {
+          orderId: order._id,
+          customerEmail: customer.email,
+          customerName,
+          customerPhone,
+          unreadByMerchant: true,
+          unreadByAdmin: true,
+          unreadByCustomer: false,
+          status: "open"
+        },
+        $addToSet: { orderIds: order._id },
+        $push: { messages: newOrderMessage }
+      },
+      { new: true }
+    );
+    if (!updated) throw new Error("The existing customer order conversation could not be updated.");
+    return updated;
+  }
+
+  const priorOrders = await Order.find({ tenantId, customerId: customer._id }).select("_id").lean();
+  const orderIds = [...new Map([...priorOrders, order].map((item) => [String(item._id), item._id])).values()];
+  const conversations = await Conversation.find({
+    tenantId,
+    $or: [
+      { orderId: { $in: orderIds } },
+      { orderIds: { $in: orderIds } }
+    ]
+  }).sort({ updatedAt: -1 });
+
+  if (conversations.length) {
+    const [conversation, ...duplicates] = conversations;
+    const messages = conversations.flatMap((item) => item.messages.map((message) => ({
+      ...message.toObject(),
+      orderId: message.orderId || item.orderId
+    })));
+    conversation.customerId = customer._id;
+    conversation.customerEmail = customer.email;
+    conversation.customerName = customerName;
+    conversation.customerPhone = customerPhone;
+    conversation.orderId = order._id;
+    conversation.orderIds = orderIds;
+    conversation.messages = [...messages, newOrderMessage].sort((a, b) =>
+      new Date(a.createdAt || 0) - new Date(b.createdAt || 0)
+    );
+    conversation.unreadByMerchant = true;
+    conversation.unreadByAdmin = true;
+    conversation.unreadByCustomer = false;
+    conversation.status = "open";
+    await conversation.save();
+    if (duplicates.length) {
+      await Conversation.deleteMany({
+        tenantId,
+        _id: { $in: duplicates.map((item) => item._id) }
+      });
+    }
+    return conversation;
+  }
+
+  try {
+    return await Conversation.create({
+      tenantId,
+      orderId: order._id,
+      orderIds,
+      customerId: customer._id,
+      customerEmail: customer.email,
+      customerName,
+      customerPhone,
+      unreadByMerchant: true,
+      unreadByAdmin: true,
+      messages: [newOrderMessage]
+    });
+  } catch (error) {
+    if (error.code !== 11000) throw error;
+    const conversation = await Conversation.findOne({ tenantId, customerId: customer._id });
+    if (!conversation) throw error;
+    const updated = await Conversation.findOneAndUpdate(
+      { _id: conversation._id, tenantId },
+      {
+        $set: {
+          orderId: order._id,
+          customerEmail: customer.email,
+          customerName,
+          customerPhone,
+          unreadByMerchant: true,
+          unreadByAdmin: true,
+          unreadByCustomer: false,
+          status: "open"
+        },
+        $addToSet: { orderIds: { $each: orderIds } },
+        $push: { messages: newOrderMessage }
+      },
+      { new: true }
+    );
+    if (!updated) throw new Error("The existing customer order conversation could not be updated.");
+    return updated;
+  }
 }
 
 function createStoreSupportToken(conversation) {
@@ -597,20 +709,29 @@ async function authenticateOrderCustomer(req, res, next) {
     if (payload.purpose !== "order_chat" || !mongoose.isValidObjectId(payload.conversationId) || !mongoose.isValidObjectId(payload.orderId) || !mongoose.isValidObjectId(payload.tenantId)) {
       return res.status(401).json({ error: "Order chat access is invalid. Verify your order again." });
     }
+    let orderQuery = { _id: payload.orderId, tenantId: payload.tenantId };
     if (payload.customerId) {
       const customer = await customerFromRequest(req);
       if (!customer || !customer._id.equals(payload.customerId)) {
         return res.status(401).json({ error: "Sign in to the customer account that placed this order." });
       }
+      orderQuery.customerId = customer._id;
     }
-    const conversation = await Conversation.findOne({
-      _id: payload.conversationId,
-      orderId: payload.orderId,
-      tenantId: payload.tenantId
-    });
-    if (!conversation) return res.status(404).json({ error: "Order conversation not found." });
-    const order = await Order.findOne({ _id: payload.orderId, tenantId: payload.tenantId }).lean();
+    const order = await Order.findOne(orderQuery).lean();
     if (!order) return res.status(404).json({ error: "Order conversation not found." });
+    let conversation = await Conversation.findOne({
+      _id: payload.conversationId,
+      tenantId: payload.tenantId,
+      $or: [{ orderId: payload.orderId }, { orderIds: payload.orderId }]
+    });
+    if (!conversation && payload.customerId) {
+      conversation = await Conversation.findOne({
+        tenantId: payload.tenantId,
+        customerId: payload.customerId,
+        $or: [{ orderId: payload.orderId }, { orderIds: payload.orderId }]
+      });
+    }
+    if (!conversation) return res.status(404).json({ error: "Order conversation not found." });
     req.orderConversation = conversation;
     req.customerOrder = order;
     return next();
@@ -1006,6 +1127,9 @@ api.get("/customer/auth/google", (req, res) => {
   if (!clientId || !clientSecret || !redirectUri) {
     return res.redirect(customerReturnUrl(returnTo, "customerAuthError", "google_not_configured"));
   }
+  if (req.query.clientId !== clientId) {
+    return res.redirect(customerReturnUrl(returnTo, "customerAuthError", "google_configuration_mismatch"));
+  }
   const state = randomBytes(32).toString("base64url");
   const nonce = randomBytes(32).toString("base64url");
   const rememberMe = req.query.rememberMe !== "false";
@@ -1016,7 +1140,7 @@ api.get("/customer/auth/google", (req, res) => {
     returnTo,
     rememberMe
   }, process.env.JWT_SECRET, { expiresIn: "10m" });
-  res.cookie(googleStateCookie, stateToken, customerCookieOptions("/api/customer/auth/google", 10 * 60 * 1000));
+  res.cookie(googleStateCookie, stateToken, customerCookieOptions("/api", 10 * 60 * 1000));
   const authorizationUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   authorizationUrl.search = new URLSearchParams({
     client_id: clientId,
@@ -1030,9 +1154,10 @@ api.get("/customer/auth/google", (req, res) => {
   return res.redirect(authorizationUrl.toString());
 });
 
-api.get("/customer/auth/google/callback", async (req, res, next) => {
+const googleOAuthCallback = async (req, res, next) => {
   const stateToken = cookieValue(req, googleStateCookie);
   res.clearCookie(googleStateCookie, customerCookieOptions("/api/customer/auth/google"));
+  res.clearCookie(googleStateCookie, customerCookieOptions("/api"));
   let statePayload;
   try {
     statePayload = jwt.verify(stateToken, process.env.JWT_SECRET);
@@ -1097,7 +1222,10 @@ api.get("/customer/auth/google/callback", async (req, res, next) => {
   } catch (error) {
     return next(error);
   }
-});
+};
+
+api.get("/auth/google/callback", googleOAuthCallback);
+api.get("/customer/auth/google/callback", googleOAuthCallback);
 
 api.get("/customer/orders", authenticateCustomer, async (req, res, next) => {
   try {
@@ -2465,7 +2593,10 @@ api.post("/tenant/support/conversations/:id/messages", authenticate, requireRole
 api.get("/tenant/conversations", authenticate, requireRole("business_owner"), async (req, res, next) => {
   try {
     const items = await Conversation.find(withTenantScope(req.user))
-      .sort({ updatedAt: -1 }).limit(100).populate("orderId").lean();
+      .sort({ updatedAt: -1 }).limit(100)
+      .populate("orderId")
+      .populate("messages.orderId", "orderNumber")
+      .lean();
     res.json({ items });
   } catch (error) {
     next(error);
@@ -2479,14 +2610,17 @@ api.get("/tenant/conversations/:id", authenticate, requireRole("business_owner")
       withTenantScope(req.user, { _id: req.params.id }),
       { $set: { unreadByMerchant: false } },
       { new: true }
-    ).populate("orderId").lean();
+    ).populate("orderId").populate("messages.orderId", "orderNumber").lean();
     if (!conversation) return res.status(404).json({ error: "Conversation not found." });
     await Conversation.updateOne(
       { _id: conversation._id, tenantId: tenantIdFor(req.user) },
       { $set: { "messages.$[message].readByMerchantAt": new Date() } },
       { arrayFilters: [{ "message.sender": "customer", "message.readByMerchantAt": null }] }
     );
-    const updated = await Conversation.findOne(withTenantScope(req.user, { _id: req.params.id })).populate("orderId").lean();
+    const updated = await Conversation.findOne(withTenantScope(req.user, { _id: req.params.id }))
+      .populate("orderId")
+      .populate("messages.orderId", "orderNumber")
+      .lean();
     res.json({ conversation: updated });
   } catch (error) {
     next(error);
@@ -2498,10 +2632,19 @@ api.post("/tenant/conversations/:id/messages", authenticate, requireRole("busine
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid conversation ID." });
     const input = parseOrRespond(orderChatMessageSchema, req.body, res);
     if (!input) return;
+    const existing = await Conversation.findOne(withTenantScope(req.user, { _id: req.params.id })).select("orderId");
+    if (!existing) return res.status(404).json({ error: "Conversation not found." });
     const conversation = await Conversation.findOneAndUpdate(
       withTenantScope(req.user, { _id: req.params.id }),
       {
-        $push: { messages: { sender: "merchant", senderName: req.user.name, body: input.body } },
+        $push: {
+          messages: {
+            sender: "merchant",
+            senderName: req.user.name,
+            orderId: existing.orderId,
+            body: input.body
+          }
+        },
         $set: { unreadByCustomer: true, unreadByMerchant: false, unreadByAdmin: true }
       },
       { new: true }
@@ -2539,6 +2682,7 @@ api.get("/admin/order-conversations", authenticate, requireRole("super_admin"), 
       .limit(100)
       .populate("tenantId", "name slug")
       .populate("orderId")
+      .populate("messages.orderId", "orderNumber")
       .lean();
     res.json({ items });
   } catch (error) {
@@ -2553,14 +2697,18 @@ api.get("/admin/order-conversations/:id", authenticate, requireRole("super_admin
       req.params.id,
       { $set: { unreadByAdmin: false } },
       { new: true }
-    ).populate("tenantId", "name slug").populate("orderId").lean();
+    ).populate("tenantId", "name slug").populate("orderId").populate("messages.orderId", "orderNumber").lean();
     if (!conversation) return res.status(404).json({ error: "Conversation not found." });
     const messages = await Conversation.updateOne(
       { _id: conversation._id },
       { $set: { "messages.$[message].readByAdminAt": new Date() } },
       { arrayFilters: [{ "message.sender": "customer", "message.readByAdminAt": null }] }
     );
-    const thread = await Conversation.findById(conversation._id).populate("tenantId", "name slug").populate("orderId").lean();
+    const thread = await Conversation.findById(conversation._id)
+      .populate("tenantId", "name slug")
+      .populate("orderId")
+      .populate("messages.orderId", "orderNumber")
+      .lean();
     res.json({ conversation: thread, read: messages.modifiedCount > 0 });
   } catch (error) {
     next(error);
@@ -2572,14 +2720,23 @@ api.post("/admin/order-conversations/:id/messages", authenticate, requireRole("s
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid conversation ID." });
     const input = parseOrRespond(orderChatMessageSchema, req.body, res);
     if (!input) return;
+    const existing = await Conversation.findById(req.params.id).select("orderId");
+    if (!existing) return res.status(404).json({ error: "Conversation not found." });
     const conversation = await Conversation.findOneAndUpdate(
       { _id: req.params.id },
       {
-        $push: { messages: { sender: "platform_admin", senderName: req.user.name, body: input.body } },
+        $push: {
+          messages: {
+            sender: "platform_admin",
+            senderName: req.user.name,
+            orderId: existing.orderId,
+            body: input.body
+          }
+        },
         $set: { unreadByCustomer: true, unreadByMerchant: true, unreadByAdmin: false }
       },
       { new: true }
-    ).populate("tenantId", "name slug").populate("orderId");
+    ).populate("tenantId", "name slug").populate("orderId").populate("messages.orderId", "orderNumber");
     if (!conversation) return res.status(404).json({ error: "Conversation not found." });
     await writeAudit({
       actor: req.user,
@@ -2772,9 +2929,12 @@ api.post("/store/:slug/orders/:orderNumber/chat/access", customerAccessLimiter, 
         return res.status(401).json({ error: "Sign in to the customer account that placed this order." });
       }
     }
-    const conversation = await Conversation.findOne({ tenantId: tenant._id, orderId: order._id });
+    const conversation = await Conversation.findOne({
+      tenantId: tenant._id,
+      $or: [{ orderId: order._id }, { orderIds: order._id }]
+    });
     if (!conversation) return res.status(404).json({ error: "Customer support is unavailable for this order." });
-    res.json({ accessToken: createOrderChatToken(conversation, order.customerId), order });
+    res.json({ accessToken: createOrderChatToken(conversation, order.customerId, order._id), order });
   } catch (error) {
     next(error);
   }
@@ -2785,7 +2945,7 @@ api.get("/customer/order-chat", authenticateOrderCustomer, async (req, res, next
     const tenant = await Tenant.exists({ _id: req.customerOrder.tenantId, status: "active" });
     if (!tenant) return res.status(403).json({ error: "This store is currently unavailable." });
     const conversation = await Conversation.findOneAndUpdate(
-      { _id: req.orderConversation._id, orderId: req.customerOrder._id, tenantId: req.customerOrder.tenantId },
+      { _id: req.orderConversation._id, tenantId: req.customerOrder.tenantId },
       {
         $set: {
           unreadByCustomer: false,
@@ -2793,7 +2953,7 @@ api.get("/customer/order-chat", authenticateOrderCustomer, async (req, res, next
         }
       },
       { new: true, arrayFilters: [{ "message.sender": { $ne: "customer" }, "message.readByCustomerAt": null }] }
-    );
+    ).populate("messages.orderId", "orderNumber");
     if (!conversation) return res.status(404).json({ error: "Order conversation not found." });
     res.json({ conversation, order: req.customerOrder });
   } catch (error) {
@@ -2806,13 +2966,20 @@ api.post("/customer/order-chat/messages", customerMessageLimiter, authenticateOr
     const input = parseOrRespond(orderChatMessageSchema, req.body, res);
     if (!input) return;
     const conversation = await Conversation.findOneAndUpdate(
-      { _id: req.orderConversation._id, orderId: req.customerOrder._id, tenantId: req.customerOrder.tenantId },
+      { _id: req.orderConversation._id, tenantId: req.customerOrder.tenantId },
       {
-        $push: { messages: { sender: "customer", senderName: req.customerOrder.customer.name, body: input.body } },
+        $push: {
+          messages: {
+            sender: "customer",
+            senderName: req.customerOrder.customer.name,
+            orderId: req.customerOrder._id,
+            body: input.body
+          }
+        },
         $set: { unreadByMerchant: true, unreadByAdmin: true, unreadByCustomer: false, status: "open" }
       },
       { new: true }
-    );
+    ).populate("messages.orderId", "orderNumber");
     if (!conversation) return res.status(404).json({ error: "Order conversation not found." });
     res.status(201).json({ conversation });
   } catch (error) {
@@ -2848,11 +3015,14 @@ api.post("/store/:slug/orders", authLimiter, authenticateCustomer, async (req, r
         || normalizePhone(existing.customer.phone) !== normalizePhone(input.customer.phone)) {
         return res.status(409).json({ error: "This checkout key belongs to a different customer order." });
       }
-      const conversation = await Conversation.findOne({ tenantId: tenant._id, orderId: existing._id });
+      const conversation = await Conversation.findOne({
+        tenantId: tenant._id,
+        $or: [{ orderId: existing._id }, { orderIds: existing._id }]
+      });
       return res.status(200).json({
         order: existing,
         duplicate: true,
-        accessToken: conversation ? createOrderChatToken(conversation, req.customer._id) : null
+        accessToken: conversation ? createOrderChatToken(conversation, req.customer._id, existing._id) : null
       });
     }
 
@@ -2954,22 +3124,16 @@ api.post("/store/:slug/orders", authLimiter, authenticateCustomer, async (req, r
     });
     createdOrder = order;
     await CustomerAccount.updateOne({ _id: req.customer._id }, { $set: { phone: input.customer.phone } });
-    const conversation = await Conversation.create({
+    const conversation = await findCustomerOrderConversation({
       tenantId: tenant._id,
-      orderId: order._id,
+      order,
+      customer: req.customer,
       customerName: input.customer.name,
-      customerPhone: input.customer.phone,
-      unreadByMerchant: true,
-      unreadByAdmin: true,
-      messages: [{
-        sender: "customer",
-        senderName: input.customer.name,
-        body: `Order ${orderNumber} placed. Payment is awaiting verification.`
-      }]
+      customerPhone: input.customer.phone
     });
     return res.status(201).json({
       order,
-      accessToken: createOrderChatToken(conversation, req.customer._id),
+      accessToken: createOrderChatToken(conversation, req.customer._id, order._id),
       paymentNotice: "Payment integrations are not configured. This order remains pending payment."
     });
   } catch (error) {
@@ -2995,8 +3159,15 @@ api.post("/store/:slug/orders", authLimiter, authenticateCustomer, async (req, r
           || normalizePhone(existing.customer.phone) !== normalizePhone(input.customer.phone)) {
           return res.status(409).json({ error: "This checkout key belongs to a different customer order." });
         }
-        const conversation = await Conversation.findOne({ tenantId: reservedTenantId, orderId: existing._id });
-        return res.status(200).json({ order: existing, duplicate: true, accessToken: conversation ? createOrderChatToken(conversation, req.customer._id) : null });
+        const conversation = await Conversation.findOne({
+          tenantId: reservedTenantId,
+          $or: [{ orderId: existing._id }, { orderIds: existing._id }]
+        });
+        return res.status(200).json({
+          order: existing,
+          duplicate: true,
+          accessToken: conversation ? createOrderChatToken(conversation, req.customer._id, existing._id) : null
+        });
       }
     }
     try {

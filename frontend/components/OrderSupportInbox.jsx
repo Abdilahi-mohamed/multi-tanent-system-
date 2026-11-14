@@ -70,7 +70,7 @@ export function OrderSupportInbox({ role = "business_owner" }) {
   const visible = conversations.filter((item) => {
     const orderInfo = item.orderId || {};
     const tenantName = item.tenantId?.name || "";
-    return `${item.customerName} ${item.customerPhone} ${orderInfo.orderNumber || ""} ${tenantName}`
+    return `${item.customerName} ${item.customerEmail || ""} ${item.customerPhone} ${orderInfo.orderNumber || ""} ${tenantName}`
       .toLowerCase().includes(search.trim().toLowerCase());
   });
 
@@ -118,7 +118,7 @@ export function OrderSupportInbox({ role = "business_owner" }) {
             <span className="avatar conversation-avatar">{item.customerName.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</span>
             <div><div className="conversation-meta"><b>{item.customerName}</b><small>{shortDate(item.updatedAt)}</small></div>
               <p>{item.messages?.at(-1)?.body || "Order support conversation"}</p>
-              <div className="conversation-meta"><small>{itemOrder.orderNumber || "Order"}{isAdmin && item.tenantId?.name ? ` · ${item.tenantId.name}` : ""}</small>{(isAdmin ? item.unreadByAdmin : item.unreadByMerchant) && <i className="support-unread-dot" aria-label="Unread message" />}</div>
+              <div className="conversation-meta"><small>{itemOrder.orderNumber || "Order"} · {item.orderIds?.length || 1} orders{isAdmin && item.tenantId?.name ? ` · ${item.tenantId.name}` : ""}</small>{(isAdmin ? item.unreadByAdmin : item.unreadByMerchant) && <i className="support-unread-dot" aria-label="Unread message" />}</div>
             </div>
           </button>;
         })}{!visible.length && <div className="empty-state">{conversations.length ? "No conversations match your search." : "New order support conversations will appear here."}</div>}</div>
@@ -126,15 +126,15 @@ export function OrderSupportInbox({ role = "business_owner" }) {
       {conversation ? <section className="chat-thread">
         <header className="thread-header">
           <span className="avatar">{conversation.customerName.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</span>
-          <div><b>{conversation.customerName}</b><small>{conversation.customerPhone} · {order?.orderNumber}{isAdmin && conversation.tenantId?.name ? ` · ${conversation.tenantId.name}` : ""}</small></div>
+          <div><b>{conversation.customerName}</b><small>{conversation.customerEmail || conversation.customerPhone} · {conversation.orderIds?.length || 1} orders{isAdmin && conversation.tenantId?.name ? ` · ${conversation.tenantId.name}` : ""}</small></div>
           <select aria-label="Conversation status" disabled={busy} value={conversation.status || "open"} onChange={(event) => setStatus(event.target.value)}>{Object.entries(statusNames).map(([value, name]) => <option value={value} key={value}>{name}</option>)}</select>
         </header>
-        <div className="thread-messages">{messages.map((message) => <div className={`message-row ${message.sender !== "customer" ? "from-merchant" : ""}`} key={message._id}><div className="message-bubble"><p>{message.body}</p><small>{message.senderName || (message.sender === "customer" ? conversation.customerName : message.sender === "platform_admin" ? "Platform support" : "Store support")} · {new Date(message.createdAt).toLocaleString()}{(message.readByCustomerAt || message.readAt) && message.sender !== "customer" ? " · Read by customer" : ""}</small></div></div>)}<div ref={bottomRef} /></div>
+        <div className="thread-messages">{messages.map((message) => <div className={`message-row ${message.sender !== "customer" ? "from-merchant" : ""}`} key={message._id}><div className="message-bubble"><p>{message.body}</p><small>{message.senderName || (message.sender === "customer" ? conversation.customerName : message.sender === "platform_admin" ? "Platform support" : "Store support")}{message.orderId?.orderNumber ? ` · Order ${message.orderId.orderNumber}` : ""} · {new Date(message.createdAt).toLocaleString()}{(message.readByCustomerAt || message.readAt) && message.sender !== "customer" ? " · Read by customer" : ""}</small></div></div>)}<div ref={bottomRef} /></div>
         <form className="composer" onSubmit={sendMessage}><input value={body} onChange={(event) => setBody(event.target.value)} maxLength={2000} placeholder={`Reply to ${conversation.customerName}…`} /><button className="button primary" disabled={busy || !body.trim()}><Send size={15} /> Send</button></form>
-      </section> : <section className="chat-thread chat-empty"><MessageCircle size={32} /><b>Select a conversation</b><p>Customer chats are isolated to the selected business and order.</p></section>}
+      </section> : <section className="chat-thread chat-empty"><MessageCircle size={32} /><b>Select a conversation</b><p>Customer chats are grouped by account within this business.</p></section>}
       <aside className="customer-dossier">
         <div className="dossier-heading">ORDER & CUSTOMER</div>
-        {conversation && order && <><div className="dossier-profile"><span className="avatar large">{conversation.customerName.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</span><div><b>{conversation.customerName}</b><small>{conversation.customerPhone}</small>{conversation.orderId?.customer?.email && <small>{conversation.orderId.customer.email}</small>}</div></div>
+        {conversation && order && <><div className="dossier-profile"><span className="avatar large">{conversation.customerName.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</span><div><b>{conversation.customerName}</b><small>{conversation.customerEmail || conversation.customerPhone}</small></div></div>
           <div className="dossier-order"><h3>{order.orderNumber}</h3>
             {orderItems.map((item, index) => <div className="dossier-item" key={`${item.productId}-${item.variantId}-${index}`}>{item.imageUrl && <img src={item.imageUrl} alt="" />}<div><b>{item.name}</b><small>{item.sectionName} · {item.variant || "Standard"}{item.sku ? ` · ${item.sku}` : ""} × {item.quantity}</small></div><b>{money(item.lineTotal ?? item.unitPrice * item.quantity)}</b></div>)}
             <div className="dossier-info"><span>Order total</span><b>{money(order.total)}</b></div>

@@ -23,6 +23,7 @@ export default function CustomerLoginForm() {
   const [loginPage, setLoginPage] = useState(defaultLoginPageSettings);
   const [tenantName, setTenantName] = useState("");
   const [customBranding, setCustomBranding] = useState(false);
+  const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
   useEffect(() => {
     let active = true;
@@ -48,6 +49,8 @@ export default function CustomerLoginForm() {
         setError("This Google account conflicts with an existing customer account. Sign in with email or contact support.");
       } else if (googleError === "customer_unavailable") {
         setError("This customer account is unavailable. Contact support for help.");
+      } else if (googleError === "google_configuration_mismatch") {
+        setError("Google sign-in is misconfigured. Contact the store administrator.");
       } else if (googleError) {
         setError("Google sign-in could not be completed. Please try again.");
       }
@@ -100,7 +103,11 @@ export default function CustomerLoginForm() {
   }
 
   function signInWithGoogle() {
-    window.location.assign(apiUrl(`/customer/auth/google?returnTo=${encodeURIComponent(returnTo)}&rememberMe=${rememberMe}`));
+    if (!googleClientId) {
+      setError("Google sign-in is not configured for this store yet.");
+      return;
+    }
+    window.location.assign(apiUrl(`/customer/auth/google?clientId=${encodeURIComponent(googleClientId)}&returnTo=${encodeURIComponent(returnTo)}&rememberMe=${rememberMe}`));
   }
 
   return <main className={`login-page ${customBranding ? `login-page-custom ${loginPage.layout} ${loginPage.formStyle}` : ""}`} style={pageStyle}>

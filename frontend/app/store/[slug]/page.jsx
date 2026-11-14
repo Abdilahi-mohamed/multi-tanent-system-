@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Image from "next/image";
 import { CheckCircle2, MessageCircle, Search, Send, ShoppingBag, Store, X } from "lucide-react";
 import { api, money } from "../../../lib/api";
 import { StoreSupportChat, StoreSupportNotifications } from "../../../components/StoreSupportChat";
@@ -54,6 +53,7 @@ export default function StorefrontPage({ params }) {
   const [accessForm, setAccessForm] = useState({ orderNumber: "", name: "", phone: "" });
   const [chatError, setChatError] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
+  const [supportTab, setSupportTab] = useState("order");
   const idempotencyKey = useRef("");
   const storeLoaded = useRef(false);
 
@@ -299,6 +299,9 @@ export default function StorefrontPage({ params }) {
     const price = item.promotionalPrice == null ? regular : Math.min(regular, item.promotionalPrice);
     return total + price * line.quantity;
   }, 0);
+  const cartCount = cart.reduce((total, line) => total + line.quantity, 0);
+  const stockCount = store.products.reduce((total, item) =>
+    total + item.variants.reduce((stock, option) => stock + option.stock, 0), 0);
 
   function chooseSection(id) {
     setSectionId(id);
@@ -464,12 +467,12 @@ export default function StorefrontPage({ params }) {
   if (!store) return <main className="storefront-page"><div className="screen-message">Loading storefront…</div></main>;
 
   return <main className="storefront-page">
-    <header className="storefront-header"><a href={`/store/${slug}`} className="store-brand"><span className="brand-mark"><Image src="/vendora-brand-mark.png" alt="" width={36} height={36} /></span><span><b>{store.tenant.name}</b><small>{store.tenant.category}</small></span></a><div className="storefront-header-actions">{customerAccount && <><a className="store-customer-name" href="/customer/orders">{customerAccount.name} · My orders</a><button type="button" className="button subtle compact" onClick={signOutCustomer} disabled={authBusy}>Sign out</button></>}<a className="button subtle compact" href="#platform-support"><MessageCircle size={14} /> Customer support</a><StoreSupportNotifications slug={slug} /><span className="store-secure"><Store size={14} /> Independent storefront</span></div></header>
-    <section className="store-intro"><p className="eyebrow">WELCOME TO {store.tenant.name.toUpperCase()}</p><h1>{store.tenant.name}</h1><p>{store.tenant.description || "Discover products from this independent business."}</p></section>
+    <header className="storefront-header"><a href={`/store/${slug}`} className="store-brand"><span className="brand-mark">S</span><span><b>{store.tenant.name}</b><small>POWERED BY VENDORA</small></span><span className="store-verified"><CheckCircle2 size={12} /> Verified Store</span></a><div className="storefront-header-actions">{customerAccount ? <a className="store-customer-name" href="/customer/orders">{customerAccount.name} <span>|</span> My Orders</a> : <a className="store-customer-name" href={`/login?returnTo=${encodeURIComponent(`/store/${slug}`)}`}>Sign in</a>}<a className="button subtle compact store-support-link" href="#support-hub"><MessageCircle size={14} /> Support</a><StoreSupportNotifications slug={slug} /><button className="button primary compact store-cart-nav" type="button" onClick={() => document.getElementById("order-configurator")?.scrollIntoView({ behavior: "smooth", block: "start" })}><ShoppingBag size={14} /> Cart ({cartCount})</button>{customerAccount && <button type="button" className="store-signout" onClick={signOutCustomer} disabled={authBusy}>Sign out</button>}</div></header>
+    <section className="store-intro"><div className="store-hero-copy"><p className="eyebrow"><span /> WELCOME TO {store.tenant.name.toUpperCase()} OFFICIAL STORE</p><h1>{store.tenant.name}</h1><p>{store.tenant.description || "Discover quality fashion and everyday essentials, delivered directly to your door."}</p></div><div className="store-hero-stats"><div><b>{stockCount}+</b><span>Items in stock</span></div><div><b>24/7</b><span>Order chat support</span></div></div></section>
     {order && <section className="order-confirmation"><CheckCircle2 size={30} /><h2>Order received</h2><p>Your order <b>{order.orderNumber}</b> was saved for this store.</p><div className="confirmation-details"><span>Amount</span><b>{money(order.total)}</b><span>Payment</span><b className="warning-text">Pending verification</b></div><p className="footnote">No payment provider is connected. Your order is not marked paid. Use Order Support below to discuss this order with the business.</p><a className="button subtle" href="/customer/orders">View my orders</a></section>}
     <div className="storefront-grid">
-      <section>
-        <div className="store-section-head"><div><p className="eyebrow">THE COLLECTION</p><h2>Shop products</h2></div><span>{visibleProducts.length} of {store.products.length} items</span></div>
+      <section className="store-collection">
+        <div className="store-section-head"><div><p className="eyebrow">THE COLLECTION</p><h2>Shop collection</h2></div><span>{visibleProducts.length} of {store.products.length} items</span></div>
         <label className="store-catalog-search"><Search size={16} /><input type="search" aria-label="Search products" placeholder="Search products and options" value={catalogSearch} onChange={(event) => setCatalogSearch(event.target.value)} /></label>
         {store.sections?.length > 0 && <nav className="store-section-tabs" aria-label="Product sections">
           <button className={!sectionId ? "selected" : ""} onClick={() => chooseSection("")}>All products</button>
@@ -503,15 +506,16 @@ export default function StorefrontPage({ params }) {
           {!catalogGroups.length && <div className="empty-state">{store.products.length ? "No products match your search." : "This store has no published products yet."}</div>}
         </div>
       </section>
-      <section className="checkout-card"><p className="eyebrow">SECURE ORDER</p><h2>Complete your order</h2>{product ? <><div className="checkout-product"><b>{product.name}</b><span>{money(displayPrice)} each{displayPrice < regularPrice && <del>{money(regularPrice)}</del>}</span></div>
+      <section className="checkout-card" id="order-configurator"><p className="eyebrow">SECURE ORDER</p><h2>Complete your order</h2>{product ? <><div className="checkout-product"><b>{product.name}</b><span>{money(displayPrice)} per unit{displayPrice < regularPrice && <del>{money(regularPrice)}</del>}</span></div>
         {imageList.length > 0 && <div className="store-product-gallery"><img className="store-selected-image" src={imageList[0]} alt={`${product.name}${variantSummary(variant || {}) ? ` · ${variantSummary(variant)}` : ""}`} />{imageList.slice(1).map((url) => <img src={url} alt={product.name} key={url} />)}</div>}
         <form onSubmit={submitOrder}>
-          {attributeOptions.map(({ key, name, values }) => <label key={key}>{name}<select required value={attributeValue(variant || {}, key)} onChange={(event) => chooseAttribute(key, event.target.value)}>{values.map((value) => { const available = variants.some((item) => attributeValue(item, key) === value && item.stock > 0); return <option value={value} disabled={!available} key={value}>{value}{available ? "" : " · Out of stock"}</option>; })}</select></label>)}
+          {attributeOptions.map(({ key, name, values }) => <fieldset className="variant-pill-field" key={key}><legend>{name}</legend><div className={`variant-pill-options ${key === "color" ? "color-pills" : ""}`}>{values.map((value) => { const available = variants.some((item) => attributeValue(item, key) === value && item.stock > 0); const selected = attributeValue(variant || {}, key) === value; return <button type="button" className={`variant-pill ${selected ? "selected" : ""}`} data-attribute={key} disabled={!available} aria-pressed={selected} onClick={() => chooseAttribute(key, value)} key={value}>{key === "color" && <i className={`color-dot color-${value.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`} />}{value}</button>; })}</div></fieldset>)}
           {!attributeOptions.length && <label>Product option<select required value={variant?._id || ""} onChange={(event) => setVariantId(event.target.value)}><option value="">Choose available option</option>{variants.map((item) => <option value={item._id} disabled={item.stock < 1} key={item._id}>{item.sku || "Standard"} · {item.stock} in stock</option>)}</select></label>}
           {matchingOptions.length > 1 && <label>SKU / variant<select value={variantId} onChange={(event) => setVariantId(event.target.value)}>{matchingOptions.map((item) => <option value={item._id} disabled={item.stock < 1} key={item._id}>{item.sku || "Option"} · {item.stock} in stock</option>)}</select></label>}
           <p className="variant-availability">{variant ? `${variant.stock} available${variantSummary(variant) ? ` · ${variantSummary(variant)}` : ""}` : "Choose an available option."}</p>
-          <label>Quantity<input type="number" min="1" max={Math.min(50, variant?.stock || 1)} value={quantity} onChange={(event) => setQuantity(event.target.value)} required /></label>
-          <button className="button subtle full-width" type="button" disabled={!variant || variant.stock < 1} onClick={addToCart}><ShoppingBag size={14} /> Add selected option to cart</button>
+          <label>Quantity</label><div className="store-quantity-stepper"><button type="button" aria-label="Decrease quantity" disabled={Number(quantity) <= 1} onClick={() => setQuantity((current) => Math.max(1, Number(current) - 1))}>−</button><input type="number" min="1" max={Math.min(50, variant?.stock || 1)} value={quantity} onChange={(event) => setQuantity(event.target.value)} required /><button type="button" aria-label="Increase quantity" disabled={Number(quantity) >= Math.min(50, variant?.stock || 1)} onClick={() => setQuantity((current) => Math.min(Math.min(50, variant?.stock || 1), Number(current) + 1))}>+</button></div>
+          <p className="checkout-selected-subtotal"><span>Selected subtotal</span><b>{money(displayPrice * (Number(quantity) || 0))}</b></p>
+          <button className="button subtle full-width store-add-to-cart" type="button" disabled={!variant || variant.stock < 1} onClick={addToCart}><ShoppingBag size={14} /> Add selected option to cart</button>
           {cart.length > 0 && <div className="store-cart"><div className="store-cart-heading"><b>Your cart</b><span>{cart.reduce((sum, item) => sum + item.quantity, 0)} items</span></div>{cart.map((line) => { const cartProduct = store.products.find((item) => item._id === line.productId); const cartVariant = cartProduct?.variants.find((item) => item._id === line.variantId); const optionPrice = cartProduct?.promotionalPrice == null ? (cartVariant?.price ?? cartProduct?.price ?? 0) : Math.min(cartVariant?.price ?? cartProduct?.price ?? 0, cartProduct.promotionalPrice); return <div className="store-cart-line" key={`${line.productId}:${line.variantId}`}><span><b>{cartProduct?.name}</b><small>{variantSummary(cartVariant || {}) || "Standard"} · {money(optionPrice)} each</small></span><input aria-label={`Quantity of ${cartProduct?.name}`} type="number" min="1" max={cartVariant?.stock || 1} value={line.quantity} onChange={(event) => updateCartQuantity(line, event.target.value)} /><button type="button" className="icon-button danger-action" aria-label={`Remove ${cartProduct?.name}`} onClick={() => removeCartItem(line)}><X size={14} /></button></div>; })}<p className="checkout-total"><span>Cart subtotal</span><b>{money(cartTotal)}</b></p></div>}
           <div className="checkout-divider" /><p className="checkout-total"><span>Items subtotal</span><b>{money(cartTotal)}</b></p>
           {customerAccount ? <>
@@ -539,12 +543,13 @@ export default function StorefrontPage({ params }) {
         </form></> : <div className="empty-state">Choose an available product to continue.</div>}
       </section>
     </div>
-    <div id="platform-support"><StoreSupportChat slug={slug} /></div>
-    <section className="store-customer-support">
-      <div className="store-support-heading"><div><p className="eyebrow">ORDER SUPPORT</p><h2><MessageCircle size={18} /> Order Support</h2><p>Contact the store team about an existing order.</p></div></div>
+    <section className="store-support-hub" id="support-hub">
+      <header className="store-support-hub-heading"><div><p className="eyebrow">HERE WHEN YOU NEED US</p><h2>Support, made simple</h2></div><div className="store-support-tabs" role="tablist" aria-label="Support options"><button type="button" role="tab" aria-selected={supportTab === "order"} className={supportTab === "order" ? "active" : ""} onClick={() => setSupportTab("order")}>Order Support</button><button type="button" role="tab" aria-selected={supportTab === "platform"} className={supportTab === "platform" ? "active" : ""} onClick={() => setSupportTab("platform")}>Contact Super Admin</button></div></header>
+      {supportTab === "platform" ? <StoreSupportChat slug={slug} /> : <section className="store-customer-support">
+      <div className="store-support-heading"><div><h2><MessageCircle size={18} /> Order Support</h2><p>Continue your conversation with the store team.</p></div></div>
       {chat ? <div className="store-support-chat">
-        <div className="store-support-order"><b>Order {chat.order.orderNumber}</b><span>{chat.order.fulfillmentStatus.replaceAll("_", " ")} · {chat.conversation.status.replaceAll("_", " ")}</span></div>
-        <div className="store-support-messages">{chat.conversation.messages.map((message) => <article className={`store-support-message ${message.sender === "customer" ? "from-customer" : "from-business"}`} key={message._id}><p>{message.body}</p><small>{message.senderName || (message.sender === "customer" ? chat.conversation.customerName : message.sender === "platform_admin" ? "Platform support" : store.tenant.name)} · {chatDate(message.createdAt)}{message.sender === "customer" && (message.readByMerchantAt || message.readByAdminAt) ? " · Read" : ""}</small></article>)}</div>
+        <div className="store-support-order"><b>Order {chat.order.orderNumber} · {chat.conversation.orderIds?.length || 1} orders in this conversation</b><span>{chat.order.fulfillmentStatus.replaceAll("_", " ")} · {chat.conversation.status.replaceAll("_", " ")}</span></div>
+        <div className="store-support-messages">{chat.conversation.messages.map((message) => <article className={`store-support-message ${message.sender === "customer" ? "from-customer" : "from-business"}`} key={message._id}><p>{message.body}</p><small>{message.senderName || (message.sender === "customer" ? chat.conversation.customerName : message.sender === "platform_admin" ? "Platform support" : store.tenant.name)}{message.orderId?.orderNumber ? ` · Order ${message.orderId.orderNumber}` : ""} · {chatDate(message.createdAt)}{message.sender === "customer" && (message.readByMerchantAt || message.readByAdminAt) ? " · Read" : ""}</small></article>)}</div>
         <form className="store-support-composer" onSubmit={sendChatMessage}><input aria-label="Support message" maxLength="2000" value={chatBody} onChange={(event) => setChatBody(event.target.value)} placeholder="Write a message about your order…" /><button className="button primary" disabled={chatBusy || !chatBody.trim()}><Send size={14} /> Send</button></form>
         {chatError && <p className="inline-error" role="alert">{chatError}</p>}
       </div> : <form className="store-order-verify" onSubmit={verifyOrder}>
@@ -552,7 +557,7 @@ export default function StorefrontPage({ params }) {
         <div><label>Order number<input required value={accessForm.orderNumber} onChange={(event) => setAccessForm({ ...accessForm, orderNumber: event.target.value })} /></label><label>Full name<input required minLength="2" value={accessForm.name} onChange={(event) => setAccessForm({ ...accessForm, name: event.target.value })} /></label><label>Phone number<input required value={accessForm.phone} onChange={(event) => setAccessForm({ ...accessForm, phone: event.target.value })} /></label><button className="button subtle" disabled={chatBusy}>{chatBusy ? "Verifying…" : "Open order support"}</button></div>
       </form>}
       {chatError && <p className="inline-error" role="alert">{chatError}</p>}
-    </section>
+    </section>}</section>
     <footer className="storefront-footer">Store orders are saved by the business backend. Payment verification is not available until a provider is configured.</footer>
   </main>;
 }
