@@ -192,6 +192,7 @@ export default function ProductsPage() {
         </div>
         <div className="variant-builder">
           <div className="variant-builder-heading"><b>Variants and stock</b><button type="button" className="text-link" onClick={() => setForm({ ...form, variants: [...form.variants, blankVariant()] })}><Plus size={14} /> Add variant</button></div>
+          <p className="variant-builder-hint">Enter each size/number and color combination as a variant. Available values appear as selectable options on your storefront.</p>
           {form.variants.map((variant, index) => <div className="variant-editor" key={variant._id || index}>
             <div className="variant-input-row">
               <input aria-label="SKU" placeholder="SKU" value={variant.sku} onChange={(event) => setVariant(index, "sku", event.target.value)} />
