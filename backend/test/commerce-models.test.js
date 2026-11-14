@@ -151,20 +151,46 @@ test("orders preserve customer delivery and exact purchased variant snapshots", 
   assert.equal(Order.schema.path("customerId").options.select, false);
 });
 
-test("order support conversations retain tenant/order ownership and message read state", () => {
+test("order support conversations group a customer by tenant and retain order context per message", () => {
   const tenantId = new mongoose.Types.ObjectId();
   const orderId = new mongoose.Types.ObjectId();
+  const secondOrderId = new mongoose.Types.ObjectId();
+  const customerId = new mongoose.Types.ObjectId();
   const conversation = new Conversation({
     tenantId,
     orderId,
+    orderIds: [orderId, secondOrderId],
+    customerId,
+    customerEmail: "CUSTOMER@example.com",
     customerName: "Store Customer",
     customerPhone: "+123456789",
-    messages: [{ sender: "customer", senderName: "Store Customer", body: "Where is my order?" }]
+    messages: [
+      { sender: "customer", senderName: "Store Customer", orderId, body: "Where is my order?" },
+      { sender: "customer", senderName: "Store Customer", orderId: secondOrderId, body: "I placed another order." }
+    ]
   });
 
   assert.equal(conversation.validateSync(), undefined);
+  assert.equal(conversation.customerEmail, "customer@example.com");
+  assert.deepEqual(conversation.orderIds.map(String), [String(orderId), String(secondOrderId)]);
   assert.equal(conversation.unreadByMerchant, true);
   assert.equal(conversation.unreadByAdmin, true);
   assert.equal(conversation.messages[0].readByCustomerAt, null);
+  assert.equal(String(conversation.messages[1].orderId), String(secondOrderId));
   assert.equal(conversation.messages[0].senderName, "Store Customer");
+  assert.ok(Conversation.schema.indexes().some(([fields, options]) =>
+    fields.tenantId === 1
+      && fields.customerId === 1
+      && options.unique
+      && options.partialFilterExpression?.customerId?.$type === "objectId"
+  ));
+  const otherStoreConversation = new Conversation({
+    tenantId: new mongoose.Types.ObjectId(),
+    orderId: new mongoose.Types.ObjectId(),
+    customerId,
+    customerEmail: "customer@example.com",
+    customerName: "Store Customer",
+    customerPhone: "+123456789"
+  });
+  assert.equal(otherStoreConversation.validateSync(), undefined);
 });

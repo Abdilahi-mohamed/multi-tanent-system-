@@ -209,6 +209,7 @@ const messageSchema = new Schema(
     sender: { type: String, enum: ["customer", "merchant", "platform_admin"], required: true },
     senderName: { type: String, trim: true, default: "" },
     body: { type: String, required: true, trim: true, maxlength: 2000 },
+    orderId: { type: Schema.Types.ObjectId, ref: "Order", default: null },
     readAt: { type: Date, default: null },
     readByCustomerAt: { type: Date, default: null },
     readByMerchantAt: { type: Date, default: null },
@@ -222,6 +223,9 @@ const conversationSchema = new Schema(
   {
     tenantId: { type: Schema.Types.ObjectId, ref: "Tenant", required: true, index: true },
     orderId: { type: Schema.Types.ObjectId, ref: "Order", required: true, unique: true },
+    orderIds: { type: [{ type: Schema.Types.ObjectId, ref: "Order" }], default: [] },
+    customerId: { type: Schema.Types.ObjectId, ref: "CustomerAccount", default: null },
+    customerEmail: { type: String, lowercase: true, trim: true, default: "" },
     customerName: { type: String, required: true },
     customerPhone: { type: String, required: true },
     status: { type: String, enum: ["open", "in_progress", "resolved"], default: "open", index: true },
@@ -234,6 +238,10 @@ const conversationSchema = new Schema(
 );
 conversationSchema.index({ tenantId: 1, unreadByMerchant: 1, updatedAt: -1 });
 conversationSchema.index({ unreadByAdmin: 1, updatedAt: -1 });
+conversationSchema.index(
+  { tenantId: 1, customerId: 1 },
+  { unique: true, partialFilterExpression: { customerId: { $type: "objectId" } } }
+);
 
 const supportConversationSchema = new Schema(
   {
