@@ -1006,6 +1006,9 @@ api.get("/customer/auth/google", (req, res) => {
   if (!clientId || !clientSecret || !redirectUri) {
     return res.redirect(customerReturnUrl(returnTo, "customerAuthError", "google_not_configured"));
   }
+  if (req.query.clientId !== clientId) {
+    return res.redirect(customerReturnUrl(returnTo, "customerAuthError", "google_configuration_mismatch"));
+  }
   const state = randomBytes(32).toString("base64url");
   const nonce = randomBytes(32).toString("base64url");
   const rememberMe = req.query.rememberMe !== "false";
@@ -1016,7 +1019,7 @@ api.get("/customer/auth/google", (req, res) => {
     returnTo,
     rememberMe
   }, process.env.JWT_SECRET, { expiresIn: "10m" });
-  res.cookie(googleStateCookie, stateToken, customerCookieOptions("/api/customer/auth/google", 10 * 60 * 1000));
+  res.cookie(googleStateCookie, stateToken, customerCookieOptions("/api", 10 * 60 * 1000));
   const authorizationUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   authorizationUrl.search = new URLSearchParams({
     client_id: clientId,
@@ -1030,9 +1033,10 @@ api.get("/customer/auth/google", (req, res) => {
   return res.redirect(authorizationUrl.toString());
 });
 
-api.get("/customer/auth/google/callback", async (req, res, next) => {
+const googleOAuthCallback = async (req, res, next) => {
   const stateToken = cookieValue(req, googleStateCookie);
   res.clearCookie(googleStateCookie, customerCookieOptions("/api/customer/auth/google"));
+  res.clearCookie(googleStateCookie, customerCookieOptions("/api"));
   let statePayload;
   try {
     statePayload = jwt.verify(stateToken, process.env.JWT_SECRET);
@@ -1097,7 +1101,10 @@ api.get("/customer/auth/google/callback", async (req, res, next) => {
   } catch (error) {
     return next(error);
   }
-});
+};
+
+api.get("/auth/google/callback", googleOAuthCallback);
+api.get("/customer/auth/google/callback", googleOAuthCallback);
 
 api.get("/customer/orders", authenticateCustomer, async (req, res, next) => {
   try {
