@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, MessageCircle, Search, Send, ShoppingBag, Store, X } from "lucide-react";
+import { ArrowRight, CheckCircle2, LockKeyhole, MessageCircle, Search, Send, ShoppingBag, Truck, X } from "lucide-react";
 import { api, money } from "../../../lib/api";
 import { StoreSupportChat, StoreSupportNotifications } from "../../../components/StoreSupportChat";
 
@@ -300,8 +300,8 @@ export default function StorefrontPage({ params }) {
     return total + price * line.quantity;
   }, 0);
   const cartCount = cart.reduce((total, line) => total + line.quantity, 0);
-  const stockCount = store.products.reduce((total, item) =>
-    total + item.variants.reduce((stock, option) => stock + option.stock, 0), 0);
+  const stockCount = store?.products.reduce((total, item) =>
+    total + item.variants.reduce((stock, option) => stock + option.stock, 0), 0) || 0;
 
   function chooseSection(id) {
     setSectionId(id);
@@ -328,8 +328,10 @@ export default function StorefrontPage({ params }) {
         || !attributeValue(variant || {}, attribute.key)
         || attributeValue(item, attribute.key) === attributeValue(variant || {}, attribute.key))
     );
-    const updated = matchesCurrent.find((item) => item.stock > 0) || matchesCurrent[0]
-      || matchesValue.find((item) => item.stock > 0) || matchesValue[0];
+    const updated = matchesCurrent.find((item) => item.stock > 0)
+      || matchesValue.find((item) => item.stock > 0)
+      || matchesCurrent[0]
+      || matchesValue[0];
     setVariantId(updated?._id || "");
     setQuantity(1);
   }
@@ -468,12 +470,12 @@ export default function StorefrontPage({ params }) {
 
   return <main className="storefront-page">
     <header className="storefront-header"><a href={`/store/${slug}`} className="store-brand"><span className="brand-mark">S</span><span><b>{store.tenant.name}</b><small>POWERED BY VENDORA</small></span><span className="store-verified"><CheckCircle2 size={12} /> Verified Store</span></a><div className="storefront-header-actions">{customerAccount ? <a className="store-customer-name" href="/customer/orders">{customerAccount.name} <span>|</span> My Orders</a> : <a className="store-customer-name" href={`/login?returnTo=${encodeURIComponent(`/store/${slug}`)}`}>Sign in</a>}<a className="button subtle compact store-support-link" href="#support-hub"><MessageCircle size={14} /> Support</a><StoreSupportNotifications slug={slug} /><button className="button primary compact store-cart-nav" type="button" onClick={() => document.getElementById("order-configurator")?.scrollIntoView({ behavior: "smooth", block: "start" })}><ShoppingBag size={14} /> Cart ({cartCount})</button>{customerAccount && <button type="button" className="store-signout" onClick={signOutCustomer} disabled={authBusy}>Sign out</button>}</div></header>
-    <section className="store-intro"><div className="store-hero-copy"><p className="eyebrow"><span /> WELCOME TO {store.tenant.name.toUpperCase()} OFFICIAL STORE</p><h1>{store.tenant.name}</h1><p>{store.tenant.description || "Discover quality fashion and everyday essentials, delivered directly to your door."}</p></div><div className="store-hero-stats"><div><b>{stockCount}+</b><span>Items in stock</span></div><div><b>24/7</b><span>Order chat support</span></div></div></section>
+    <section className="store-intro"><div className="store-hero-copy"><p className="eyebrow"><span /> WELCOME TO {store.tenant.name.toUpperCase()} OFFICIAL STORE</p><h1>{store.tenant.name}</h1><p>{store.tenant.description || "Discover quality fashion and everyday essentials, delivered directly to your door."}</p><small className="store-hero-description">Shop directly from {store.tenant.name}, with order updates and support available throughout your purchase.</small></div><div className="store-hero-stats"><div><span className="hero-stat-icon"><ShoppingBag size={15} /></span><b>{stockCount}+</b><span>Items in stock now</span></div><div><span className="hero-stat-icon"><MessageCircle size={15} /></span><b>24/7 <i>ONLINE</i></b><span>Order chat support</span></div><div><span className="hero-stat-icon"><Truck size={15} /></span><b>Store delivery</b><span>Delivery details at checkout</span></div></div></section>
     {order && <section className="order-confirmation"><CheckCircle2 size={30} /><h2>Order received</h2><p>Your order <b>{order.orderNumber}</b> was saved for this store.</p><div className="confirmation-details"><span>Amount</span><b>{money(order.total)}</b><span>Payment</span><b className="warning-text">Pending verification</b></div><p className="footnote">No payment provider is connected. Your order is not marked paid. Use Order Support below to discuss this order with the business.</p><a className="button subtle" href="/customer/orders">View my orders</a></section>}
     <div className="storefront-grid">
       <section className="store-collection">
-        <div className="store-section-head"><div><p className="eyebrow">THE COLLECTION</p><h2>Shop collection</h2></div><span>{visibleProducts.length} of {store.products.length} items</span></div>
-        <label className="store-catalog-search"><Search size={16} /><input type="search" aria-label="Search products" placeholder="Search products and options" value={catalogSearch} onChange={(event) => setCatalogSearch(event.target.value)} /></label>
+        <div className="store-section-head"><div><p className="eyebrow">THE COLLECTION</p><h2>Shop collection</h2></div><span>Showing {visibleProducts.length} of {store.products.length} items</span></div>
+        <label className="store-catalog-search"><Search size={16} /><input type="search" aria-label="Search products" placeholder="Search products and options (e.g. surwaal, router, 4G)..." value={catalogSearch} onChange={(event) => setCatalogSearch(event.target.value)} /><kbd>Ctrl + K</kbd></label>
         {store.sections?.length > 0 && <nav className="store-section-tabs" aria-label="Product sections">
           <button className={!sectionId ? "selected" : ""} onClick={() => chooseSection("")}>All products</button>
           {store.sections.map((section) => <button className={sectionId === section._id ? "selected" : ""} onClick={() => chooseSection(section._id)} key={section._id}>{section.name}</button>)}
@@ -490,14 +492,18 @@ export default function StorefrontPage({ params }) {
                 const prices = item.variants.map((option) => option.price ?? item.price);
                 const basePrice = prices.length ? Math.min(item.price, ...prices) : item.price;
                 const productPrice = item.promotionalPrice == null ? basePrice : Math.min(basePrice, item.promotionalPrice);
-                const optionSummaries = [...new Set(item.variants.filter((option) => option.stock > 0).map(variantSummary).filter(Boolean))];
+                const itemStock = item.variants.reduce((total, option) => total + option.stock, 0);
+                const colorValues = [...new Set(item.variants.map((option) => attributeValue(option, "color")).filter(Boolean))].slice(0, 5);
+                const sizeValues = [...new Set(item.variants.map((option) => attributeValue(option, "size") || attributeValue(option, "number")).filter(Boolean))].slice(0, 7);
                 return <button className={`store-product ${product?._id === item._id ? "selected" : ""}`} onClick={() => chooseProduct(item._id)} key={item._id}>
-                  <div className="store-product-image">{item.imageUrl || item.images?.[0] ? <img src={item.imageUrl || item.images[0]} alt={item.name} /> : <ShoppingBag size={26} />}</div>
+                  <div className="store-product-image">{item.imageUrl || item.images?.[0] ? <img src={item.imageUrl || item.images[0]} alt={item.name} /> : <ShoppingBag size={26} />}<span className="store-product-tag">{item.sectionId ? group.title : item.category || group.title}</span><span className="store-product-stock">{itemStock > 0 ? `${itemStock} available` : "Out of stock"}</span></div>
                   <div className="store-product-copy">
-                    <small>{item.sectionId ? group.title : item.category || group.title}</small><b>{item.name}</b>
-                    <span>From {money(productPrice)}</span>
-                    {optionSummaries.length > 0 && <div className="store-product-options">{optionSummaries.slice(0, 3).map((summary) => <small key={summary}>{summary}</small>)}{optionSummaries.length > 3 && <small>+{optionSummaries.length - 3} more options</small>}</div>}
-                    <small>{item.variants.reduce((total, option) => total + option.stock, 0)} available</small>
+                    <b>{item.name}</b>
+                    <p className="store-product-description">{item.description || `Explore ${item.name} from ${store.tenant.name}. Select an available option to see current stock.`}</p>
+                    <div className="store-product-price-row"><span>From <strong>{money(productPrice)}</strong></span><small>{itemStock > 0 ? `${itemStock} available` : "Out of stock"}</small></div>
+                    {colorValues.length > 0 && <div className="store-product-swatches" aria-label={`Available colors: ${colorValues.join(", ")}`}>{colorValues.map((value) => <i className={`color-dot color-${value.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`} title={value} key={value} />)}</div>}
+                    {sizeValues.length > 0 && <div className="store-product-sizes" aria-label={`Available sizes: ${sizeValues.join(", ")}`}>{sizeValues.map((value) => <small key={value}>{value}</small>)}</div>}
+                    <span className="store-product-configure">{product?._id === item._id ? "Configured in order panel" : "Select product"} <ArrowRight size={13} /></span>
                   </div>
                 </button>;
               })}
@@ -506,23 +512,46 @@ export default function StorefrontPage({ params }) {
           {!catalogGroups.length && <div className="empty-state">{store.products.length ? "No products match your search." : "This store has no published products yet."}</div>}
         </div>
       </section>
-      <section className="checkout-card" id="order-configurator"><p className="eyebrow">SECURE ORDER</p><h2>Complete your order</h2>{product ? <><div className="checkout-product"><b>{product.name}</b><span>{money(displayPrice)} per unit{displayPrice < regularPrice && <del>{money(regularPrice)}</del>}</span></div>
-        {imageList.length > 0 && <div className="store-product-gallery"><img className="store-selected-image" src={imageList[0]} alt={`${product.name}${variantSummary(variant || {}) ? ` · ${variantSummary(variant)}` : ""}`} />{imageList.slice(1).map((url) => <img src={url} alt={product.name} key={url} />)}</div>}
+      <section className="checkout-card" id="order-configurator"><div className="store-checkout-card-accent" /><p className="eyebrow"><LockKeyhole size={11} /> SECURE ORDER</p><div className="store-checkout-title"><h2>Complete your order</h2><span>{cartCount} {cartCount === 1 ? "Item" : "Items"}</span></div>{product ? <><div className="checkout-product">{imageList[0] ? <img src={imageList[0]} alt="" /> : <span className="checkout-product-placeholder"><ShoppingBag size={19} /></span>}<span className="checkout-product-copy"><b>{product.name}</b><small>{product.description || `Selected from ${store.tenant.name}`}</small><small className="checkout-product-ready"><i /> {variant?.stock > 0 ? "Ready to order" : "Currently unavailable"}</small></span><strong>{money(displayPrice)}<small> / unit</small></strong></div>
         <form onSubmit={submitOrder}>
-          {attributeOptions.map(({ key, name, values }) => <fieldset className="variant-pill-field" key={key}><legend>{name}</legend><div className={`variant-pill-options ${key === "color" ? "color-pills" : ""}`}>{values.map((value) => { const available = variants.some((item) => attributeValue(item, key) === value && item.stock > 0); const selected = attributeValue(variant || {}, key) === value; return <button type="button" className={`variant-pill ${selected ? "selected" : ""}`} data-attribute={key} disabled={!available} aria-pressed={selected} onClick={() => chooseAttribute(key, value)} key={value}>{key === "color" && <i className={`color-dot color-${value.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`} />}{value}</button>; })}</div></fieldset>)}
+          {attributeOptions.map(({ key, name, values }) => {
+            const isColor = key === "color";
+            return <fieldset className="variant-pill-field" key={key}>
+              <legend>{name}</legend>
+              <div className={`variant-pill-options ${isColor ? "color-pills" : ""}`}>
+                {values.map((value) => {
+                  const available = variants.some((item) => attributeValue(item, key) === value && item.stock > 0);
+                  const selected = attributeValue(variant || {}, key) === value;
+                  return <button
+                    type="button"
+                    className={`variant-pill ${selected ? "selected" : ""}`}
+                    data-attribute={key}
+                    disabled={!available}
+                    aria-pressed={selected}
+                    aria-label={`${name} ${value}${available ? "" : ", out of stock"}`}
+                    onClick={() => chooseAttribute(key, value)}
+                    key={value}
+                  >
+                    {isColor && <i className={`color-dot color-${value.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`} />}
+                    {value}
+                  </button>;
+                })}
+              </div>
+            </fieldset>;
+          })}
           {!attributeOptions.length && <label>Product option<select required value={variant?._id || ""} onChange={(event) => setVariantId(event.target.value)}><option value="">Choose available option</option>{variants.map((item) => <option value={item._id} disabled={item.stock < 1} key={item._id}>{item.sku || "Standard"} · {item.stock} in stock</option>)}</select></label>}
           {matchingOptions.length > 1 && <label>SKU / variant<select value={variantId} onChange={(event) => setVariantId(event.target.value)}>{matchingOptions.map((item) => <option value={item._id} disabled={item.stock < 1} key={item._id}>{item.sku || "Option"} · {item.stock} in stock</option>)}</select></label>}
-          <p className="variant-availability">{variant ? `${variant.stock} available${variantSummary(variant) ? ` · ${variantSummary(variant)}` : ""}` : "Choose an available option."}</p>
-          <label>Quantity</label><div className="store-quantity-stepper"><button type="button" aria-label="Decrease quantity" disabled={Number(quantity) <= 1} onClick={() => setQuantity((current) => Math.max(1, Number(current) - 1))}>−</button><input type="number" min="1" max={Math.min(50, variant?.stock || 1)} value={quantity} onChange={(event) => setQuantity(event.target.value)} required /><button type="button" aria-label="Increase quantity" disabled={Number(quantity) >= Math.min(50, variant?.stock || 1)} onClick={() => setQuantity((current) => Math.min(Math.min(50, variant?.stock || 1), Number(current) + 1))}>+</button></div>
+          <p className="variant-availability"><i /> {variant ? `${variant.stock} available · ${variantSummary(variant) || "Standard option"}` : "Choose an available option."}</p>
+          <label htmlFor="store-order-quantity">Quantity</label><div className="store-quantity-stepper"><button type="button" aria-label="Decrease quantity" disabled={Number(quantity) <= 1} onClick={() => setQuantity((current) => Math.max(1, Number(current) - 1))}>−</button><input id="store-order-quantity" type="number" min="1" max={Math.min(50, variant?.stock || 1)} value={quantity} onChange={(event) => setQuantity(event.target.value)} required /><button type="button" aria-label="Increase quantity" disabled={Number(quantity) >= Math.min(50, variant?.stock || 1)} onClick={() => setQuantity((current) => Math.min(Math.min(50, variant?.stock || 1), Number(current) + 1))}>+</button></div>
           <p className="checkout-selected-subtotal"><span>Selected subtotal</span><b>{money(displayPrice * (Number(quantity) || 0))}</b></p>
           <button className="button subtle full-width store-add-to-cart" type="button" disabled={!variant || variant.stock < 1} onClick={addToCart}><ShoppingBag size={14} /> Add selected option to cart</button>
           {cart.length > 0 && <div className="store-cart"><div className="store-cart-heading"><b>Your cart</b><span>{cart.reduce((sum, item) => sum + item.quantity, 0)} items</span></div>{cart.map((line) => { const cartProduct = store.products.find((item) => item._id === line.productId); const cartVariant = cartProduct?.variants.find((item) => item._id === line.variantId); const optionPrice = cartProduct?.promotionalPrice == null ? (cartVariant?.price ?? cartProduct?.price ?? 0) : Math.min(cartVariant?.price ?? cartProduct?.price ?? 0, cartProduct.promotionalPrice); return <div className="store-cart-line" key={`${line.productId}:${line.variantId}`}><span><b>{cartProduct?.name}</b><small>{variantSummary(cartVariant || {}) || "Standard"} · {money(optionPrice)} each</small></span><input aria-label={`Quantity of ${cartProduct?.name}`} type="number" min="1" max={cartVariant?.stock || 1} value={line.quantity} onChange={(event) => updateCartQuantity(line, event.target.value)} /><button type="button" className="icon-button danger-action" aria-label={`Remove ${cartProduct?.name}`} onClick={() => removeCartItem(line)}><X size={14} /></button></div>; })}<p className="checkout-total"><span>Cart subtotal</span><b>{money(cartTotal)}</b></p></div>}
-          <div className="checkout-divider" /><p className="checkout-total"><span>Items subtotal</span><b>{money(cartTotal)}</b></p>
+          <div className="checkout-divider" /><div className="store-checkout-totals"><p className="checkout-total"><span>Selected subtotal</span><b>{money(displayPrice * (Number(quantity) || 0))}</b></p><p className="checkout-total"><span>Estimated delivery</span><b>At checkout</b></p><p className="checkout-total"><strong>Total due</strong><strong>{money(cartTotal || displayPrice * (Number(quantity) || 0))}</strong></p></div>
           {customerAccount ? <>
             <div className="customer-account-checkout"><span>Signed in as <b>{customerAccount.email}</b></span><a href="/customer/orders">My orders</a><button type="button" className="text-link" onClick={signOutCustomer} disabled={authBusy}>Sign out</button></div>
             <p className="payment-method-note">Online payment processing is not configured. Orders remain pending until the business verifies payment.</p>
             <h3>Delivery details</h3>
-            <label>Payment method<select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}><option value="pay_on_delivery">Pay on delivery / arrange with merchant</option><option value="mobile_money">Mobile money (manual verification)</option><option value="bank_transfer">Bank transfer (manual verification)</option></select></label>
+            <label>Payment method<select className="store-payment-method" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}><option value="pay_on_delivery">Pay on delivery / arrange with merchant</option><option value="mobile_money">Mobile money (manual verification)</option><option value="bank_transfer">Bank transfer (manual verification)</option></select></label>
             <label>Full name<input required minLength="2" value={customer.name} onChange={(event) => setCustomer({ ...customer, name: event.target.value })} /></label>
             <label>Phone number<input required value={customer.phone} onChange={(event) => setCustomer({ ...customer, phone: event.target.value })} /></label>
             <label>Email<input type="email" readOnly value={customerAccount.email} /></label>
@@ -539,7 +568,7 @@ export default function StorefrontPage({ params }) {
             <a className="text-link" href={`/login?returnTo=${encodeURIComponent(`/store/${slug}?checkout=1`)}`}>Open customer login page</a>
           </section> : <p className="payment-method-note">Add an item to your cart to continue to checkout.</p>}
           {orderError && <p className="inline-error">{orderError}</p>}
-          {customerAccount && <button className="button primary full-width" type="submit" disabled={busy || cart.length === 0}>{busy ? "Placing order…" : `Place order · ${money(cartTotal)} · payment pending`}</button>}
+          {customerAccount && <button className="button primary full-width" type="submit" disabled={busy || cart.length === 0}>{busy ? "Placing order…" : <>Place order · {money(cartTotal)} <ArrowRight size={15} /></>}</button>}
         </form></> : <div className="empty-state">Choose an available product to continue.</div>}
       </section>
     </div>
