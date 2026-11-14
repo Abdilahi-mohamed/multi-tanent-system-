@@ -123,9 +123,14 @@ export default function StorefrontPage({ params }) {
         const result = await api("/customer/auth/me");
         account = result.customer;
       } catch (reason) {
-        if (reason.status !== 401 && active) {
-          setAuthError(reason.message);
+        if (!active) return;
+        if (reason.status === 401) {
+          const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+          window.location.replace(`/login?returnTo=${encodeURIComponent(returnTo)}`);
+          return;
         }
+        setError(reason.message);
+        return;
       }
       if (!active) return;
       setCustomerAccount(account);
