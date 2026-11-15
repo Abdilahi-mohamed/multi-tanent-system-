@@ -185,6 +185,16 @@ const orderSchema = new Schema(
     discount: { type: Number, default: 0, min: 0 },
     total: { type: Number, required: true, min: 0 },
     paymentMethod: { type: String, enum: ["pay_on_delivery", "mobile_money", "bank_transfer"], default: "pay_on_delivery" },
+    paymentDetails: {
+      type: new Schema({
+        senderName: { type: String, required: true, trim: true },
+        senderPhone: { type: String, required: true, trim: true },
+        transactionReference: { type: String, required: true, trim: true },
+        paidAmount: { type: Number, required: true, min: 0.01 },
+        paidAt: { type: Date, required: true }
+      }, { _id: false }),
+      default: undefined
+    },
     paymentStatus: {
       type: String,
       enum: ["pending", "paid", "failed", "refunded"],

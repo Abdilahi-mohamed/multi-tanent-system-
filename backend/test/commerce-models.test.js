@@ -136,7 +136,15 @@ test("orders preserve customer delivery and exact purchased variant snapshots", 
     ],
     subtotal: 62,
     deliveryFee: 4,
-    total: 66
+    total: 66,
+    paymentMethod: "mobile_money",
+    paymentDetails: {
+      senderName: "Store Customer",
+      senderPhone: "+123456789",
+      transactionReference: "TXN-12345",
+      paidAmount: 66,
+      paidAt: "2026-11-14"
+    }
   });
 
   assert.equal(order.validateSync(), undefined);
@@ -146,6 +154,9 @@ test("orders preserve customer delivery and exact purchased variant snapshots", 
   assert.equal(order.items[0].variantAttributes[0].value, "Linen");
   assert.equal(order.items.length, 2);
   assert.equal(order.total, 66);
+  assert.equal(order.paymentDetails.transactionReference, "TXN-12345");
+  assert.equal(order.paymentDetails.paidAmount, 66);
+  assert.equal(order.paymentDetails.paidAt.toISOString().slice(0, 10), "2026-11-14");
   assert.equal(order.paymentStatus, "pending");
   assert.equal(String(order.customerId), String(customerId));
   assert.equal(Order.schema.path("customerId").options.select, false);

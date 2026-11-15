@@ -44,6 +44,7 @@ export default function StorefrontPage({ params }) {
   const [authError, setAuthError] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("pay_on_delivery");
+  const [paymentDetails, setPaymentDetails] = useState({ senderName: "", senderPhone: "", transactionReference: "", paidAmount: "", paidAt: "" });
   const [busy, setBusy] = useState(false);
   const [order, setOrder] = useState(null);
   const [orderError, setOrderError] = useState("");
@@ -399,7 +400,14 @@ export default function StorefrontPage({ params }) {
       const response = await api(`/store/${encodeURIComponent(slug)}/orders`, {
         method: "POST",
         headers: { "Idempotency-Key": idempotencyKey.current },
-        body: JSON.stringify({ items: cart.map(({ productId: itemProductId, variantId: itemVariantId, quantity: itemQuantity }) => ({ productId: itemProductId, variantId: itemVariantId, quantity: itemQuantity })), customer, paymentMethod })
+        body: JSON.stringify({
+          items: cart.map(({ productId: itemProductId, variantId: itemVariantId, quantity: itemQuantity }) => ({ productId: itemProductId, variantId: itemVariantId, quantity: itemQuantity })),
+          customer,
+          paymentMethod,
+          ...(paymentMethod === "pay_on_delivery" ? {} : {
+            paymentDetails: { ...paymentDetails, paidAmount: Number(paymentDetails.paidAmount) }
+          })
+        })
       });
       setOrder(response.order);
       setCart([]);
@@ -552,6 +560,14 @@ export default function StorefrontPage({ params }) {
             <p className="payment-method-note">Online payment processing is not configured. Orders remain pending until the business verifies payment.</p>
             <h3>Delivery details</h3>
             <label>Payment method<select className="store-payment-method" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)}><option value="pay_on_delivery">Pay on delivery / arrange with merchant</option><option value="mobile_money">Mobile money (manual verification)</option><option value="bank_transfer">Bank transfer (manual verification)</option></select></label>
+            {paymentMethod !== "pay_on_delivery" && <fieldset className="store-payment-details">
+              <legend>Payment details</legend>
+              <label>Name of sender<input required minLength="2" maxLength="120" autoComplete="name" value={paymentDetails.senderName} onChange={(event) => setPaymentDetails({ ...paymentDetails, senderName: event.target.value })} /></label>
+              <label>Number payment was sent from<input required type="tel" minLength="5" maxLength="40" autoComplete="tel" value={paymentDetails.senderPhone} onChange={(event) => setPaymentDetails({ ...paymentDetails, senderPhone: event.target.value })} /></label>
+              <label>Transaction / reference number<input required minLength="1" maxLength="120" value={paymentDetails.transactionReference} onChange={(event) => setPaymentDetails({ ...paymentDetails, transactionReference: event.target.value })} /></label>
+              <label>Amount sent<input required type="number" min="0.01" max="1000000000" step="0.01" value={paymentDetails.paidAmount} onChange={(event) => setPaymentDetails({ ...paymentDetails, paidAmount: event.target.value })} /></label>
+              <label>Date paid<input required type="date" max={new Date().toISOString().slice(0, 10)} value={paymentDetails.paidAt} onChange={(event) => setPaymentDetails({ ...paymentDetails, paidAt: event.target.value })} /></label>
+            </fieldset>}
             <label>Full name<input required minLength="2" value={customer.name} onChange={(event) => setCustomer({ ...customer, name: event.target.value })} /></label>
             <label>Phone number<input required value={customer.phone} onChange={(event) => setCustomer({ ...customer, phone: event.target.value })} /></label>
             <label>Email<input type="email" readOnly value={customerAccount.email} /></label>
