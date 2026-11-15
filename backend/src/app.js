@@ -255,6 +255,16 @@ const orderSchema = z.object({
   variantId: z.string().regex(/^[a-f\d]{24}$/i).optional(),
   quantity: z.number().int().min(1).max(50).optional(),
   paymentMethod: z.enum(["pay_on_delivery", "mobile_money", "bank_transfer"]).optional().default("pay_on_delivery"),
+  paymentDetails: z.object({
+    senderName: z.string().trim().min(2).max(120),
+    senderPhone: z.string().trim().min(5).max(40),
+    transactionReference: z.string().trim().min(1).max(120),
+    paidAmount: z.number().finite().positive().max(1_000_000_000),
+    paidAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((value) => {
+      const date = new Date(`${value}T00:00:00.000Z`);
+      return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+    }, "Enter a valid payment date.")
+  }).optional(),
   customer: z.object({
     name: z.string().trim().min(2).max(120),
     phone: z.string().trim().min(5).max(40),
@@ -269,7 +279,11 @@ const orderSchema = z.object({
   const lines = input.items || [{ productId: input.productId, variantId: input.variantId }];
   const uniqueLines = new Set(lines.map((line) => `${line.productId}:${line.variantId}`));
   return uniqueLines.size === lines.length;
-}, { message: "Each product option can appear only once in the order; update its quantity instead." });
+}, { message: "Each product option can appear only once in the order; update its quantity instead." })
+  .refine((input) => input.paymentMethod === "pay_on_delivery" || Boolean(input.paymentDetails), {
+    path: ["paymentDetails"],
+    message: "Payment sender and transaction details are required for this payment method."
+  });
 const orderChatAccessSchema = z.object({
   name: z.string().trim().min(2).max(120),
   phone: z.string().trim().min(5).max(40)
@@ -3120,6 +3134,7 @@ api.post("/store/:slug/orders", authLimiter, authenticateCustomer, async (req, r
       subtotal,
       deliveryFee: 0,
       paymentMethod: input.paymentMethod,
+      paymentDetails: input.paymentDetails,
       total: subtotal
     });
     createdOrder = order;

@@ -58,6 +58,7 @@ export default function CustomerOrdersPage() {
           <div className="customer-order-heading"><div><small>{order.tenantId?.name || "Store"} · {shortDate(order.createdAt)}</small><h2>{order.orderNumber}</h2></div><StatusPill tone={order.fulfillmentStatus}>{order.fulfillmentStatus.replaceAll("_", " ")}</StatusPill></div>
           <div className="customer-order-items">{(order.items?.length ? order.items : [order.item]).map((item, index) => <div className="customer-order-item" key={`${item.productId}-${index}`}><PackageCheck size={16} /><span><b>{item.name}</b><small>{item.variant || "Standard"} · Qty {item.quantity}</small></span><strong>{money(item.lineTotal ?? item.unitPrice * item.quantity)}</strong></div>)}</div>
           <div className="customer-order-footer"><span>Payment · <StatusPill tone={order.paymentStatus}>{order.paymentStatus}</StatusPill></span><b>Total {money(order.total)}</b><span>{order.paymentMethod.replaceAll("_", " ")}</span>{order.tenantId?.slug && <Link className="text-link" href={`/store/${encodeURIComponent(order.tenantId.slug)}`}>Shop this store</Link>}</div>
+          {order.paymentDetails && <p className="customer-order-payment-details">Payment sent: {money(order.paymentDetails.paidAmount)} · Ref {order.paymentDetails.transactionReference}</p>}
         </article>)}
       </div> : !error && <div className="customer-orders-empty">No orders yet. Browse a store and sign in at checkout to place your first order.</div>}
     </section>
