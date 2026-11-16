@@ -75,7 +75,7 @@ export default function OrdersPage() {
 
   const visibleOrders = orders.filter((order) => `${order.orderNumber} ${order.customer.name} ${order.customer.phone} ${(order.items?.length ? order.items : [order.item]).map((item) => `${item.name} ${item.sku} ${item.sectionName}`).join(" ")}`.toLowerCase().includes(search.toLowerCase()));
   const selectedItems = selectedOrder?.items?.length ? selectedOrder.items : selectedOrder ? [selectedOrder.item] : [];
-  return <div className="page-content">
+  return <div className="page-content tenant-orders-page">
     <PageHeader eyebrow="COMMERCE OPERATIONS" title="Orders & fulfillment" description="Review order snapshots, customer delivery details, and fulfillment. Payments remain pending until confirmed by a configured provider." />
     {error && <p className="inline-error" role="alert">{error}</p>}
     <Panel title={`Store orders · ${orders.length}`} action={<div className="filter-actions"><label className="table-search"><Search size={15} /><input placeholder="Search order or customer" value={search} onChange={(event) => setSearch(event.target.value)} /></label><select value={filter} onChange={(event) => setFilter(event.target.value)}>{filters.map((item) => <option value={item} key={item}>{item.replaceAll("_", " ")}</option>)}</select></div>}>

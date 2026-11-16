@@ -31,7 +31,7 @@ export default function PaymentsPage() {
   useEffect(() => { load(); }, [load]);
   const metrics = data?.metrics;
 
-  return <div className="page-content">
+  return <div className="page-content tenant-payments-page">
     <PageHeader eyebrow="PAYMENTS & SALES" title="Payment activity" description="Review this company's order payment status." actions={<a className="button subtle" href="/dashboard/payment-gateway-settings"><Settings size={14} /> Payment Gateway Settings</a>} />
 
     <div className="payment-safety-banner"><ShieldCheck size={18} /><div><b>Online payment integration is not configured</b><p>Orders can be placed, but customers cannot pay through this app yet. Payment statuses below are order records, not live provider verification. Never share API keys or card details in chat or support notes.</p></div></div>

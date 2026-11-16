@@ -2285,3 +2285,249 @@ td b { color: var(--text); }
 .platform-customer-support-page .security-note { border-color: var(--gold-line); background: var(--gold-soft); }
 .platform-support-page .security-note svg,
 .platform-customer-support-page .security-note svg { color: var(--gold-hover); }
+
+/* Store Owner commerce screens — Gold Ledger */
+.tenant-dashboard .page-header,
+.tenant-catalog-page .page-header,
+.tenant-sections-page .page-header,
+.tenant-orders-page .page-header,
+.tenant-payments-page .page-header { margin-bottom: 22px; }
+.tenant-dashboard .page-header h1 { font-size: 30px; }
+.tenant-dashboard .page-description,
+.tenant-catalog-page .page-description,
+.tenant-sections-page .page-description,
+.tenant-orders-page .page-description,
+.tenant-payments-page .page-description { max-width: 720px; font-size: 13px; line-height: 1.6; }
+.tenant-dashboard .header-actions,
+.tenant-catalog-page .header-actions,
+.tenant-sections-page .header-actions,
+.tenant-orders-page .header-actions,
+.tenant-payments-page .header-actions { gap: 9px; }
+.tenant-dashboard .header-actions .button,
+.tenant-catalog-page .header-actions .button,
+.tenant-sections-page .header-actions .button,
+.tenant-orders-page .header-actions .button,
+.tenant-payments-page .header-actions .button { min-height: 40px; padding: 0 15px; font-size: 12px; }
+.tenant-context { gap: 18px; margin: -8px 0 18px; font-size: 11px; }
+.tenant-context svg { color: var(--gold-hover); }
+.tenant-metrics { gap: 14px; margin-bottom: 16px; }
+.tenant-metrics .metric-card { min-height: 112px; padding: 16px; }
+.tenant-metrics .metric-card p { margin-bottom: 8px; font-size: 10px; letter-spacing: .04em; }
+.tenant-metrics .metric-card strong { font-size: 25px; }
+.tenant-metrics .metric-card small { margin-top: 6px; font-size: 10px; }
+.tenant-metrics .metric-icon { top: 14px; right: 14px; width: 32px; height: 32px; border: 1px solid var(--gold-line); border-radius: 9px; background: var(--gold-soft); color: var(--gold-hover); }
+.tenant-metrics .metric-icon.green { border-color: rgba(116,209,156,.25); background: var(--success-bg); color: var(--success); }
+.tenant-metrics .metric-icon.amber { border-color: rgba(242,181,82,.25); background: var(--warning-bg); color: var(--warning); }
+.tenant-columns { gap: 16px; margin-top: 0; }
+.tenant-columns .stack { gap: 16px; }
+.tenant-dashboard .panel,
+.tenant-catalog-page .panel,
+.tenant-sections-page .panel,
+.tenant-orders-page .panel,
+.tenant-payments-page .panel { border-radius: var(--radius-card); background: var(--surface); }
+.tenant-dashboard .panel-heading,
+.tenant-catalog-page .panel-heading,
+.tenant-sections-page .panel-heading,
+.tenant-orders-page .panel-heading,
+.tenant-payments-page .panel-heading { min-height: 58px; padding: 10px 17px; }
+.tenant-dashboard .panel-heading h2,
+.tenant-catalog-page .panel-heading h2,
+.tenant-sections-page .panel-heading h2,
+.tenant-orders-page .panel-heading h2,
+.tenant-payments-page .panel-heading h2 { font-size: 14px; }
+.tenant-dashboard .table-wrap table { min-width: 720px; }
+.tenant-dashboard th, .tenant-catalog-page th, .tenant-orders-page th, .tenant-payments-page th { padding: 11px 13px; font-size: 9px; }
+.tenant-dashboard td, .tenant-catalog-page td, .tenant-orders-page td, .tenant-payments-page td { padding: 12px 13px; font-size: 11px; }
+.tenant-dashboard .table-subline,
+.tenant-catalog-page .table-subline,
+.tenant-orders-page .table-subline,
+.tenant-payments-page .table-subline { color: var(--muted); font-size: 9px; }
+.tenant-dashboard .quiet-label { color: var(--gold-hover); font-size: 9px; }
+.tenant-dashboard .payment-empty { border-color: var(--gold-line); background: var(--gold-soft); }
+.tenant-dashboard .payment-empty > div > b { color: var(--text); font-size: 12px; }
+.tenant-dashboard .payment-empty p { color: var(--text-secondary); font-size: 11px; line-height: 1.6; }
+.tenant-dashboard .payment-mark { border: 1px solid var(--gold-line); background: var(--surface-raised); color: var(--gold-hover); }
+.tenant-dashboard .security-note { margin-top: 10px; border-radius: var(--radius-control); font-size: 10px; }
+.tenant-dashboard .security-note svg { color: var(--gold-hover); }
+.tenant-dashboard .notice-card { border-radius: var(--radius-control); color: var(--text-secondary); }
+.tenant-dashboard .notice-card svg { color: var(--gold-hover); }
+.tenant-dashboard .stream-item { border-color: var(--border); }
+.tenant-dashboard .stream-node { background: var(--gold); box-shadow: 0 0 0 3px var(--gold-soft); }
+.tenant-dashboard .stream-item b { color: var(--text); }
+.tenant-dashboard .stream-item p,
+.tenant-dashboard .stream-item small { color: var(--text-secondary); }
+.tenant-dashboard .inventory-row { gap: 10px; padding: 12px; border-radius: var(--radius-control); }
+.tenant-dashboard .inventory-row > div b { color: var(--text); }
+.tenant-dashboard .inventory-row > div small { color: var(--muted); }
+.tenant-dashboard .inventory-icon { border: 1px solid var(--gold-line); background: var(--gold-soft); color: var(--gold-hover); }
+
+.tenant-catalog-page .catalog-toolbar,
+.tenant-orders-page .filter-actions,
+.tenant-payments-page .filter-actions { gap: 9px; }
+.tenant-catalog-page .panel-heading .filter-actions,
+.tenant-orders-page .panel-heading .filter-actions,
+.tenant-payments-page .panel-heading .filter-actions { flex-wrap: wrap; justify-content: flex-end; }
+.tenant-catalog-page .table-search,
+.tenant-orders-page .table-search,
+.tenant-payments-page .table-search { height: 38px; }
+.tenant-catalog-page .table-search input,
+.tenant-orders-page .table-search input,
+.tenant-payments-page .table-search input { width: 205px; font-size: 11px; }
+.tenant-catalog-page .filter-actions select,
+.tenant-orders-page .filter-actions select,
+.tenant-payments-page .filter-actions select { height: 38px; padding: 0 11px; border-radius: var(--radius-control); font-size: 11px; }
+.tenant-catalog-page .table-wrap table { min-width: 980px; }
+.tenant-catalog-page td > b { font-size: 11px; }
+.tenant-catalog-page .business-cell { gap: 10px; }
+.tenant-catalog-page .business-cell b { color: var(--text); font-size: 11px; }
+.tenant-catalog-page .business-cell small { color: var(--muted); font-size: 9px; }
+.tenant-catalog-page .product-thumb { width: 38px; height: 38px; flex: 0 0 auto; border: 1px solid var(--border); border-radius: 9px; object-fit: cover; }
+.tenant-catalog-page .square-logo { width: 38px; height: 38px; border-color: var(--gold-line); border-radius: 9px; background: var(--gold-soft); color: var(--gold-hover); }
+.tenant-catalog-page .table-row-actions { gap: 6px; }
+.tenant-catalog-page .table-row-actions .button { min-height: 32px; font-size: 10px; }
+.tenant-catalog-page .danger-action { border: 1px solid var(--border); border-radius: 8px; color: var(--error); }
+.tenant-catalog-page .danger-action:hover:not(:disabled) { border-color: rgba(242,132,118,.35); background: var(--error-bg); }
+.tenant-catalog-page .form-panel { border-color: var(--gold-line); }
+.tenant-catalog-page .product-form,
+.tenant-sections-page .product-form { padding: 18px; }
+.tenant-catalog-page .product-form label,
+.tenant-sections-page .product-form label { color: var(--text-secondary); font-size: 11px; }
+.tenant-catalog-page .product-form input,
+.tenant-catalog-page .product-form textarea,
+.tenant-catalog-page .product-form select,
+.tenant-sections-page .product-form input,
+.tenant-sections-page .product-form textarea,
+.tenant-sections-page .product-form select { min-height: 40px; font-size: 12px; }
+.tenant-catalog-page .product-form textarea,
+.tenant-sections-page .product-form textarea { min-height: auto; }
+.tenant-catalog-page .variant-builder { padding-top: 14px; border-top: 1px solid var(--border); }
+.tenant-catalog-page .variant-builder-heading { font-size: 11px; }
+.tenant-catalog-page .variant-builder-hint { color: var(--muted); font-size: 10px; }
+.tenant-catalog-page .variant-editor { padding: 12px 0; border-color: var(--border); }
+.tenant-catalog-page .variant-attributes { border-color: var(--border); background: var(--surface-raised); }
+.tenant-catalog-page .variant-extra-fields label { color: var(--text-secondary); font-size: 10px; }
+.tenant-catalog-page .variant-extra-fields input,
+.tenant-catalog-page .variant-attribute-row input { min-height: 36px; border-color: var(--border); background: var(--surface-raised); color: var(--text); font-size: 11px; }
+.tenant-catalog-page .form-actions,
+.tenant-sections-page .form-actions { padding-top: 14px; border-color: var(--border); }
+.tenant-catalog-page .inline-success { border-color: rgba(116,209,156,.3); border-radius: var(--radius-control); background: var(--success-bg); color: var(--success); }
+
+.tenant-sections-page .section-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; padding: 14px; }
+.tenant-sections-page .section-card { border-color: var(--border); border-radius: var(--radius-control); background: var(--surface-raised); }
+.tenant-sections-page .section-card-heading { align-items: flex-start; gap: 11px; padding: 14px; border-color: var(--border); }
+.tenant-sections-page .section-card-heading > img,
+.tenant-sections-page .section-placeholder { width: 42px; height: 42px; border: 1px solid var(--gold-line); border-radius: 10px; background: var(--gold-soft); color: var(--gold-hover); }
+.tenant-sections-page .section-card-heading h2 { color: var(--text); font-size: 13px; }
+.tenant-sections-page .section-card-heading p { color: var(--muted); font-size: 10px; line-height: 1.5; }
+.tenant-sections-page .section-card-products { min-height: 116px; padding: 12px 14px; }
+.tenant-sections-page .section-card-products > b { color: var(--text); font-size: 10px; }
+.tenant-sections-page .section-card-products > a { color: var(--text-secondary); font-size: 10px; }
+.tenant-sections-page .section-card-products > a:hover { color: var(--gold-hover); }
+.tenant-sections-page .section-card-products > a small,
+.tenant-sections-page .section-card-products > p,
+.tenant-sections-page .section-card-products > small { color: var(--muted); font-size: 9px; }
+.tenant-sections-page .section-card-actions { gap: 6px; padding: 10px; border-color: var(--border); }
+.tenant-sections-page .section-card-actions .button { min-height: 32px; font-size: 10px; }
+.tenant-sections-page .section-card-actions .danger-action { border: 1px solid var(--border); border-radius: 8px; color: var(--error); }
+.tenant-sections-page .panel-heading .table-search { height: 38px; }
+.tenant-sections-page .panel-heading .table-search input { width: 210px; font-size: 11px; }
+
+.tenant-orders-page .filter-actions select { text-transform: capitalize; }
+.tenant-orders-page .table-wrap table { min-width: 1050px; }
+.tenant-orders-page td select { min-width: 114px; min-height: 34px; padding: 0 9px; font-size: 10px; text-transform: capitalize; }
+.tenant-orders-page .user-pagination,
+.tenant-payments-page .user-pagination { min-height: 54px; padding: 10px 17px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; }
+.tenant-orders-page .order-dialog-backdrop { background: rgba(0,0,0,.72); }
+.tenant-orders-page .order-dialog { border-radius: var(--radius-card); background: var(--surface); box-shadow: 0 24px 80px rgba(0,0,0,.6); }
+.tenant-orders-page .order-dialog-header,
+.tenant-orders-page .order-dialog-content,
+.tenant-orders-page .order-dialog-content h3 { color: var(--text); }
+.tenant-orders-page .order-dialog-header { border-color: var(--border); }
+.tenant-orders-page .order-dialog-header small,
+.tenant-orders-page .order-detail-product small { color: var(--muted); }
+.tenant-orders-page .order-detail-product { border-color: var(--border); }
+.tenant-orders-page .order-totals,
+.tenant-orders-page .order-statuses,
+.tenant-orders-page .payment-submission-details,
+.tenant-orders-page .order-delivery-form { border-color: var(--border); }
+.tenant-orders-page .order-delivery-form label { color: var(--text-secondary); }
+.tenant-orders-page .payment-submission-details { background: var(--surface-raised); }
+.tenant-orders-page .payment-submission-details dt { color: var(--muted); }
+.tenant-orders-page .payment-submission-details dd { color: var(--text); }
+.tenant-orders-page .payment-method-note { color: var(--text-secondary); }
+
+.tenant-payments-page .payment-safety-banner { margin-bottom: 16px; padding: 15px 17px; border-color: var(--gold-line); border-radius: var(--radius-card); background: var(--gold-soft); color: var(--text); }
+.tenant-payments-page .payment-safety-banner > svg { color: var(--gold-hover); }
+.tenant-payments-page .payment-safety-banner b { color: var(--gold-hover); font-size: 13px; }
+.tenant-payments-page .payment-safety-banner p { margin-top: 4px; color: var(--text-secondary); font-size: 11px; line-height: 1.6; }
+.tenant-payments-page .payment-metrics { gap: 14px; margin-bottom: 18px; }
+.tenant-payments-page .payment-metrics .metric-card { min-height: 108px; padding: 15px; }
+.tenant-payments-page .payment-metrics .metric-card p { font-size: 10px; letter-spacing: .04em; }
+.tenant-payments-page .payment-metrics .metric-card strong { font-size: 24px; }
+.tenant-payments-page .payment-metrics .metric-icon { width: 32px; height: 32px; border: 1px solid var(--gold-line); border-radius: 9px; background: var(--gold-soft); color: var(--gold-hover); }
+.tenant-payments-page .payment-metrics .metric-icon.green { border-color: rgba(116,209,156,.25); background: var(--success-bg); color: var(--success); }
+.tenant-payments-page .payment-metrics .metric-icon.amber { border-color: rgba(242,181,82,.25); background: var(--warning-bg); color: var(--warning); }
+.tenant-payments-page .payment-inline-error { margin: 10px 16px; }
+.tenant-payments-page .table-wrap table { min-width: 760px; }
+
+@media (max-width: 1100px) {
+  .tenant-sections-page .section-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  .tenant-columns { grid-template-columns: 1fr; }
+  .tenant-dashboard .page-header h1 { font-size: 27px; }
+}
+@media (max-width: 700px) {
+  .tenant-metrics, .tenant-payments-page .payment-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+  .tenant-metrics .metric-card { min-height: 102px; padding: 12px; }
+  .tenant-metrics .metric-card strong { font-size: 21px; }
+  .tenant-payments-page .payment-metrics .metric-card { min-height: 100px; padding: 12px; }
+  .tenant-payments-page .payment-metrics .metric-card strong { font-size: 21px; }
+  .tenant-catalog-page .panel-heading,
+  .tenant-orders-page .panel-heading,
+  .tenant-payments-page .panel-heading,
+  .tenant-sections-page .panel-heading { align-items: stretch; flex-direction: column; }
+  .tenant-catalog-page .panel-heading .filter-actions,
+  .tenant-orders-page .panel-heading .filter-actions,
+  .tenant-payments-page .panel-heading .filter-actions { justify-content: stretch; }
+  .tenant-catalog-page .table-search,
+  .tenant-orders-page .table-search,
+  .tenant-payments-page .table-search { flex: 1; min-width: 0; }
+  .tenant-catalog-page .table-search input,
+  .tenant-orders-page .table-search input,
+  .tenant-payments-page .table-search input { width: 100%; }
+  .tenant-sections-page .section-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  .tenant-dashboard .header-actions,
+  .tenant-catalog-page .header-actions,
+  .tenant-sections-page .header-actions,
+  .tenant-orders-page .header-actions,
+  .tenant-payments-page .header-actions { width: 100%; }
+  .tenant-dashboard .header-actions .button,
+  .tenant-catalog-page .header-actions .button,
+  .tenant-sections-page .header-actions .button,
+  .tenant-orders-page .header-actions .button,
+  .tenant-payments-page .header-actions .button { flex: 1; }
+  .tenant-dashboard .page-header h1 { font-size: 24px; }
+  .tenant-context { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .tenant-dashboard .panel-heading,
+  .tenant-catalog-page .panel-heading,
+  .tenant-sections-page .panel-heading,
+  .tenant-orders-page .panel-heading,
+  .tenant-payments-page .panel-heading { padding: 10px 13px; }
+  .tenant-catalog-page .panel-heading .filter-actions,
+  .tenant-orders-page .panel-heading .filter-actions,
+  .tenant-payments-page .panel-heading .filter-actions { align-items: stretch; flex-direction: column; }
+  .tenant-catalog-page .filter-actions select,
+  .tenant-orders-page .filter-actions select,
+  .tenant-payments-page .filter-actions select { width: 100%; }
+  .tenant-catalog-page .product-form,
+  .tenant-sections-page .product-form { padding: 13px; }
+  .tenant-catalog-page .variant-input-row { grid-template-columns: 1fr 1fr; }
+  .tenant-catalog-page .variant-input-row .danger-action { justify-self: end; }
+  .tenant-catalog-page .variant-extra-fields { grid-template-columns: 1fr; padding-left: 0; }
+  .tenant-payments-page .payment-safety-banner { padding: 12px; }
+  .tenant-orders-page .user-pagination,
+  .tenant-payments-page .user-pagination { align-items: flex-start; flex-direction: column; gap: 9px; }
+}
