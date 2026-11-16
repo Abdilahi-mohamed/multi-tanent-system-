@@ -12,7 +12,7 @@ import { api, clearToken } from "../lib/api";
 
 const adminSections = [
   { title: "OVERVIEW", items: [{ label: "Platform Overview", href: "/super-admin/overview", icon: LayoutDashboard }, { label: "Analytics & Reports", href: "/super-admin/overview", icon: BarChart3 }] },
-  { title: "BUSINESS MANAGEMENT", items: [{ label: "Create Business Account", href: "/super-admin/businesses", icon: Building2 }, { label: "Pending Approvals", href: "/super-admin/businesses?status=pending", icon: ClipboardList }, { label: "Business Activity", href: "/super-admin/audit", icon: Activity }] },
+  { title: "BUSINESS MANAGEMENT", items: [{ label: "All Businesses", href: "/super-admin/businesses", icon: Building2 }, { label: "Pending Approvals", href: "/super-admin/businesses?status=pending", icon: ClipboardList }, { label: "Business Activity", href: "/super-admin/audit", icon: Activity }] },
   { title: "USERS & ACCESS", items: [{ label: "User Management", href: "/super-admin/users", icon: Users }, { label: "Customers", href: "/super-admin/customers", icon: Users }, { label: "Security Logs", href: "/super-admin/audit", icon: Shield }] },
   { title: "PLANS & BILLING", items: [{ label: "Platform Revenue", href: "/super-admin/settings", icon: Wallet }] },
   { title: "COMMERCE MONITORING", items: [{ label: "Payment Management", href: "/super-admin/payments", icon: Boxes }] },
@@ -100,7 +100,7 @@ export function AppShell({ role, children }) {
               const isPendingView = queryString.includes("status=pending");
               const isActive = label === "Pending Approvals"
                 ? pathname === "/super-admin/businesses" && isPendingView
-                : pathname === href && !(label === "Create Business Account" && isPendingView);
+                : pathname === href && !(label === "All Businesses" && isPendingView);
               return <a className={`nav-item ${isActive ? "active" : ""}`} href={href} key={label} title={label}>
                 <Icon size={16} strokeWidth={1.8} /><span>{label}</span>
               </a>;
