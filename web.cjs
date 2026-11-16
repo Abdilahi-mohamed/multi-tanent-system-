@@ -23,6 +23,41 @@ async function isReachable(url) {
   }
 }
 
+async function isApiHealthy(url) {
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(2000) });
+    if (!response.ok) return false;
+    return (await response.json()).status === "healthy";
+  } catch {
+    return false;
+  }
+}
+
+function readEnvValue(directory, files, key) {
+  for (const file of files) {
+    const envPath = path.join(directory, file);
+    if (!fs.existsSync(envPath)) continue;
+    const line = fs.readFileSync(envPath, "utf8").split(/\r?\n/)
+      .find((entry) => new RegExp(`^\\s*(?:export\\s+)?${key}\\s*=`).test(entry));
+    if (!line) continue;
+
+    let value = line.slice(line.indexOf("=") + 1).trim();
+    if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    } else {
+      value = value.replace(/\s+#.*$/, "").trim();
+    }
+    if (value) return value;
+  }
+  return "";
+}
+
+function localBackendMatches(apiUrl, backendPort) {
+  const parsed = new URL(apiUrl);
+  const apiPort = Number(parsed.port || (parsed.protocol === "https:" ? 443 : 80));
+  return ["localhost", "127.0.0.1"].includes(parsed.hostname) && apiPort === backendPort;
+}
+
 function startService(name, executable, args, cwd) {
   console.log(`Starting ${name}...`);
   const child = spawn(executable, args, { cwd, stdio: "inherit" });
@@ -69,12 +104,18 @@ process.once("SIGINT", stopServices);
 process.once("SIGTERM", stopServices);
 
 async function main() {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
+    || readEnvValue(frontendRoot, [".env.development.local", ".env.local", ".env.development", ".env"], "NEXT_PUBLIC_API_URL")
+    || "http://localhost:4000/api";
   const webUrl = process.env.WEB_URL || "http://localhost:3000";
   const apiHealthUrl = `${apiUrl.replace(/\/$/, "")}/health`;
+  const backendPort = Number(process.env.PORT || readEnvValue(backendRoot, [".env"], "PORT") || 4000);
   const frontendIsRunning = await isReachable(webUrl);
 
-  if (!(await isReachable(apiHealthUrl))) {
+  if (!(await isApiHealthy(apiHealthUrl))) {
+    if (!localBackendMatches(apiUrl, backendPort)) {
+      throw new Error(`The configured API is unavailable at ${apiHealthUrl}. Check NEXT_PUBLIC_API_URL and start the API service.`);
+    }
     const backend = startService("backend", process.execPath, ["--watch", "server.js"], backendRoot);
     await waitForService("Backend API", apiHealthUrl, backend);
   }
@@ -85,10 +126,13 @@ async function main() {
     await waitForService("Frontend", webUrl, frontend);
   }
 
-  if (process.env.WEB_OPEN_ALWAYS === "1" || !fs.existsSync(browserMarker)) {
+  const shouldOpenBrowser = process.env.WEB_OPEN_ALWAYS === "1" || !fs.existsSync(browserMarker);
+  if (!process.argv.includes("--no-open") && shouldOpenBrowser) {
     console.log(`Opening ${webUrl}`);
     openBrowser(webUrl);
     fs.writeFileSync(browserMarker, String(Date.now()));
+  } else if (process.argv.includes("--no-open")) {
+    console.log(`Frontend and API are ready at ${webUrl} and ${apiHealthUrl}.`);
   } else {
     console.log("Browser already opened for this running web server; not opening another tab.");
   }
