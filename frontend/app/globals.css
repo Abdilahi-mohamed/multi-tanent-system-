@@ -1,23 +1,30 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Sora:wght@500;600;700&display=swap");
 
 :root {
-  --navy: #222222;
-  --blue: #0047AB;
+  --navy: #0B0B0B;
+  --blue: #D4AF37;
   --gold: #D4AF37;
-  --gold-hover: #E5C35D;
-  --background: #222222;
-  --card-slate: #333333;
-  --surface: #FFFFFF;
-  --border: #4D4D4D;
-  --text: #FFFFFF;
-  --muted: #B8B8B8;
-  --success: #C1A041;
-  --info: #516391;
-  --focus: #3A7DFF;
-  --neutral-gray: #808080;
-  --warning: #D4AF37;
-  --error: #DC2626;
-  --sidebar-width: 220px;
+  --gold-hover: #E6C65C;
+  --background: #111111;
+  --card-slate: #181818;
+  --surface: #181818;
+  --border: #2A2A2A;
+  --text: #F5F2EA;
+  --muted: #99938A;
+  --success: #74D19C;
+  --info: #C2BCAF;
+  --focus: #D4AF37;
+  --neutral-gray: #99938A;
+  --warning: #F2B552;
+  --error: #F28476;
+  --sidebar-width: 256px;
+  --surface-raised: #1F1F1F;
+  --surface-hover: #272727;
+  --text-secondary: #C2BCAF;
+  --gold-soft: rgba(212,175,55,.11);
+  --gold-line: rgba(212,175,55,.38);
+  --radius-card: 14px;
+  --radius-control: 10px;
   color-scheme: dark;
 }
 
@@ -1332,6 +1339,7 @@ td b { color: var(--text); font-size: 9px; font-weight: 600; }
 }
 .storefront-page .store-hero-stats b { font-size: 17px; }
 .storefront-page .store-hero-stats b i { color: #67D594; font-size: 7px; font-style: normal; letter-spacing: .1em; }
+
 .storefront-page .store-hero-stats span:not(.hero-stat-icon) { font-size: 8px; line-height: 1.4; }
 .storefront-page .hero-stat-icon { position: absolute; top: 12px; display: grid; width: 28px; height: 28px; place-items: center; border: 1px solid rgba(245,195,66,.14); border-radius: 9px; background: rgba(245,195,66,.07); color: var(--store-gold) !important; }
 .storefront-page .storefront-grid { grid-template-columns: minmax(0,1.22fr) minmax(360px,.82fr); gap: 24px; }
@@ -1459,4 +1467,142 @@ td b { color: var(--text); font-size: 9px; font-weight: 600; }
   .storefront-page .store-product-copy { min-height: 0; }
   .storefront-page .store-intro h1 { font-size: 42px; }
   .storefront-page .store-catalog-search kbd { display: none; }
+}
+
+/* Keep the shared Gold Ledger tokens authoritative over page-specific legacy rules. */
+body, .main-area { background: var(--background); color: var(--text); font-family: "Inter", system-ui, sans-serif; }
+h1, h2, h3, h4 { font-family: "Sora", "Inter", system-ui, sans-serif; }
+.sidebar { background: var(--navy); border-color: var(--border); }
+.topbar { background: rgba(17,17,17,.94); border-color: var(--border); color: var(--text); }
+.sidebar .nav-item.active, .sidebar .nav-item.active:hover { border: 1px solid var(--gold-line); background: var(--gold-soft); color: var(--gold-hover); }
+.page-content { max-width: 1360px; padding: 28px 32px 48px; color: var(--text); }
+.page-header h1 { color: var(--text); font: 700 30px/1.15 "Sora", sans-serif; }
+.eyebrow, .text-link, .tenant-context a, .stream-link a { color: var(--gold-hover); }
+.page-description, .tenant-context { color: var(--text-secondary); }
+.panel, .page-content .panel, .login-card, .user-dialog, .order-dialog {
+  border-color: var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  color: var(--text);
+}
+.panel-heading, .page-content .panel-heading {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+.panel-heading h2 { color: var(--text); font: 600 15px "Sora", sans-serif; }
+.metric-card, .page-content .metric-card {
+  border-color: var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+}
+.metric-card p, .metric-card small { color: var(--text-secondary); }
+.metric-card strong { color: var(--text); font-family: "Sora", sans-serif; }
+.button, .page-content .button {
+  border-color: var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface-raised);
+  color: var(--text);
+}
+.button.primary, .button.primary:hover:not(:disabled), .page-content .button.primary {
+  border-color: var(--gold);
+  background: var(--gold);
+  color: #1A1404;
+}
+.button.subtle, .page-content .button.subtle { border-color: var(--gold-line); background: transparent; color: var(--gold-hover); }
+.button.subtle:hover:not(:disabled), .page-content .button.subtle:hover:not(:disabled) { background: var(--gold-soft); }
+.global-search, .table-search { border-color: #383838; border-radius: var(--radius-control); background: var(--surface); color: var(--muted); }
+.global-search input, .table-search input { color: var(--text); }
+.notification-popover, .notification-popover-heading, .notification-entry {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+.notification-entry:hover { background: var(--surface-raised); }
+.notification-view-all, .notification-popover-heading > span { color: var(--gold-hover); }
+th, .page-content th { border-color: var(--border); background: var(--surface); color: var(--muted); }
+td, .page-content td { border-color: var(--border); color: var(--text-secondary); }
+td b { color: var(--text); }
+.page-content :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea),
+.page-content .panel select, .page-content .panel input, .page-content .panel textarea {
+  border-color: #383838;
+  border-radius: var(--radius-control);
+  background: var(--surface-raised);
+  color: var(--text);
+}
+.login-page :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  border-color: #383838;
+  border-radius: var(--radius-control);
+  background: var(--surface-raised);
+  color: var(--text);
+}
+.filter-actions select, .panel-heading > select { border-color: #383838; background: var(--surface-raised); color: var(--text); }
+.user-create-form { border-color: var(--border); background: var(--surface); }
+.user-create-form :is(input, select, textarea) { border-color: #383838; background: var(--surface-raised); color: var(--text); }
+.user-dialog h2, .order-dialog-header { border-color: var(--border); color: var(--text); }
+.status-pill.active, .status-pill.paid, .status-pill.delivered, .status-pill.resolved { background: rgba(116,209,156,.11); color: var(--success); }
+.status-pill.pending, .status-pill.warning, .status-pill.new, .status-pill.open { background: rgba(242,181,82,.11); color: var(--warning); }
+.status-pill.suspended, .status-pill.rejected, .status-pill.failed, .status-pill.cancelled { background: rgba(242,132,118,.11); color: var(--error); }
+.status-pill.processing, .status-pill.ready, .status-pill.shipped, .status-pill.in_progress { background: var(--gold-soft); color: var(--gold-hover); }
+.page-content .conversation-item.selected { border-left-color: var(--gold); background: var(--gold-soft); color: var(--text); }
+.page-content .conversation-item.selected p, .page-content .conversation-item.selected small { color: var(--text-secondary); }
+.page-content .message-bubble, .page-content .conversation-item { border-color: var(--border); background: var(--surface); color: var(--text); }
+.page-content .from-merchant .message-bubble { border-color: var(--gold-line); background: var(--gold-soft); }
+.page-content .from-merchant .message-bubble p, .page-content .from-merchant .message-bubble small { color: var(--text-secondary); }
+.page-content .notice-card, .page-content .inventory-row, .page-content .security-note { border-color: var(--border); background: var(--surface-raised); color: var(--text-secondary); }
+.page-content .support-summary-intro { border-color: var(--gold-line); background: var(--gold-soft); color: var(--gold-hover); }
+.page-content .support-summary-intro p { color: var(--text-secondary); }
+.login-page, .customer-orders-page { background: var(--background); color: var(--text); }
+.login-card h1 { color: var(--text); font-family: "Sora", sans-serif; }
+.login-card label { color: var(--text-secondary); }
+.login-icon { background: var(--gold-soft); color: var(--gold); }
+.storefront-page { --store-bg: #111111; --store-card: #181818; --store-line: #2A2A2A; --store-muted: #99938A; --store-gold: #D4AF37; background: var(--background); }
+.storefront-page .store-product.selected { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold-line); }
+.storefront-page .store-section-tabs button.selected, .storefront-page .variant-pill.selected {
+  border-color: var(--gold);
+  background: var(--gold);
+  color: #1A1404;
+}
+.storefront-page .store-cart-nav, .storefront-page .store-add-to-cart,
+.storefront-page .button.primary, .storefront-page .customer-auth-primary,
+.storefront-page .checkout-card .button.primary, .storefront-page .customer-auth-panel .button {
+  border-color: var(--gold);
+  background: var(--gold);
+  color: #1A1404;
+}
+.storefront-page .google-signin-button { border-color: #383838; background: var(--surface-raised); color: var(--text); }
+.storefront-page .storefront-header, .storefront-page .store-product,
+.storefront-page .checkout-card, .storefront-page .store-support-hub,
+.storefront-page .order-confirmation { border-color: var(--border); background-color: var(--surface); }
+.storefront-page .store-hero-stats b, .storefront-page .store-product-price-row strong,
+.storefront-page .checkout-product > strong, .storefront-page .checkout-total b { color: var(--gold-hover) !important; }
+.storefront-page .storefront-footer { color: var(--muted); }
+@media (max-width: 800px) { .page-content { padding: 22px 20px 36px; } }
+@media (max-width: 560px) {
+  .page-content { padding: 18px 14px 28px; }
+  .page-header h1 { font-size: 24px; }
+  .panel-heading { padding-right: 14px; padding-left: 14px; }
+}
+.brand-row { height: 80px; gap: 12px; padding: 0 20px; }
+.brand-row .brand-mark { width: 40px; height: 40px; border-radius: 12px; }
+.admin-side-nav, .tenant-side-nav { padding: 18px 10px 12px; }
+.admin-side-nav .nav-section, .tenant-side-nav .nav-section { margin: 12px 0 18px; }
+.nav-heading { margin: 0 10px 6px; color: var(--muted); font-size: 10px; letter-spacing: .12em; }
+.nav-item {
+  min-height: 40px;
+  gap: 12px;
+  margin: 2px 0;
+  padding: 0 11px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.nav-item:hover { background: var(--surface-raised); color: var(--text); }
+.sidebar-bottom { padding: 16px 20px; }
+.profile-mini { gap: 12px; }
+@media (max-width: 800px) {
+  .brand-row { height: 72px; justify-content: center; padding: 0 6px; }
+  .admin-side-nav, .tenant-side-nav { padding: 12px 7px 8px; }
+  .sidebar-bottom { padding: 8px 4px; }
 }
