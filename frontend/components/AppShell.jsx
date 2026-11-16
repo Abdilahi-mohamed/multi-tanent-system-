@@ -89,12 +89,11 @@ export function AppShell({ role, children }) {
     <div className={`app-shell ${collapsed ? "sidebar-collapsed" : ""}`}>
       <aside className="sidebar">
         <div className="brand-row">
-          <div className="brand-mark"><Image src="/vendora-brand-mark.png" alt="" width={36} height={36} /></div>
+          <div className="brand-mark"><Image src="/vendora-brand-mark.png" alt="" width={40} height={40} /></div>
           <div className="brand-copy"><b>Vendora</b><small>{role === "super_admin" ? "SUPER ADMIN" : tenant?.name || "STORE OPERATIONS"}</small></div>
           <button className="icon-button collapse-button" aria-label="Collapse navigation" onClick={() => setCollapsed(!collapsed)}><ChevronDown size={16} /></button>
         </div>
-        <div className="workspace-label">{role === "super_admin" ? "PLATFORM WORKSPACE" : "LIVE STOREFRONT"}</div>
-        <nav className="side-nav">
+        <nav className={`side-nav ${role === "super_admin" ? "admin-side-nav" : "tenant-side-nav"}`}>
           {sections.map((section) => <div className="nav-section" key={section.title}>
             <p className="nav-heading">{section.title}</p>
             {section.items.map(({ label, href, icon: Icon }) => {
