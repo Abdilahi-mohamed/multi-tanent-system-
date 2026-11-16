@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AlertCircle, Building2, CheckCircle2, CreditCard, Save, ShieldCheck, Trash2, Wallet } from "lucide-react";
-import { LoadingState, PageHeader, Panel } from "../../../components/AppShell";
-import { PaymentProviderCatalog } from "../../../components/PaymentProviderCatalog";
+import { LoadingState, PageHeader, Panel, StatusPill } from "../../../components/AppShell";
 import { api } from "../../../lib/api";
 import { paymentProviders } from "../../../lib/payment-providers";
 
@@ -89,11 +88,22 @@ export default function PaymentGatewaySettingsPage() {
     }
   }
 
-  const selectedProvider = paymentProviders.find((provider) => provider.id === selected);
+  const configuredCount = configured.length;
+  const integratedCount = configured.filter((item) => item.connectionStatus === "connected").length;
+  const checkoutAvailable = configured.some((item) => item.connectionStatus === "connected" && item.enabled);
+  const readinessPercent = paymentProviders.length ? Math.round((integratedCount / paymentProviders.length) * 100) : 0;
 
-  return <div className="page-content">
+  return <div className="page-content tenant-payment-gateways-page">
     <PageHeader eyebrow="PAYMENTS & SALES" title="Payment Gateway Settings" description="Manage this company's merchant credentials and payment methods. Credentials are encrypted by the API and are never returned to the browser." />
     <div className="payment-safety-banner"><ShieldCheck size={18} /><div><b>Credentials are protected</b><p>Secret values are encrypted before storage and are not shown after saving. Adding credentials does not activate customer checkout; an approved provider adapter is still required.</p></div></div>
+    <div className="gateway-readiness-summary" aria-label="Payment gateway readiness">
+      <div className="gateway-readiness-stat"><span>Configured</span><b>{configuredCount}<small>of {paymentProviders.length}</small></b></div>
+      <div className="gateway-readiness-stat"><span>Integrated</span><b>{integratedCount}<small>of {paymentProviders.length}</small></b></div>
+      <div className="gateway-readiness-progress" role="progressbar" aria-label="Integrated payment providers" aria-valuemin="0" aria-valuemax={paymentProviders.length} aria-valuenow={integratedCount}>
+        <span style={{ width: `${readinessPercent}%` }} />
+      </div>
+      <StatusPill tone={checkoutAvailable ? "active" : "failed"}>{checkoutAvailable ? "Online checkout available" : "Online checkout unavailable"}</StatusPill>
+    </div>
     {error && <p className="inline-error" role="alert">{error}</p>}
     {message && <p className="customer-auth-message" role="status">{message}</p>}
     {loading && !configured.length ? <LoadingState /> : <div className="payment-gateway-grid">
@@ -102,7 +112,7 @@ export default function PaymentGatewaySettingsPage() {
         const saved = configured.find((item) => item.provider === provider.id);
         const isEditing = selected === provider.id;
         const connectionStatus = saved?.connectionStatus || "not_configured";
-        const connectionLabel = connectionStatus === "connected" ? "Configured" : connectionStatus === "requires_attention" ? "Requires Attention" : "Not Configured";
+        const connectionLabel = connectionStatus === "connected" ? "Integrated" : connectionStatus === "requires_attention" ? "Credentials saved" : "Not configured";
         return <Panel className="payment-gateway-panel" key={provider.id} title={provider.name} action={<span className={`gateway-status ${connectionStatus}`}><i />{connectionLabel}</span>}>
           <div className="payment-gateway-provider"><span className="payment-provider-icon"><Icon size={18} /></span><div><b>{provider.organization}</b><small>{provider.category}</small></div></div>
           <p className="payment-gateway-description">{provider.description}</p>
@@ -125,12 +135,9 @@ export default function PaymentGatewaySettingsPage() {
           </div>}
           {saved?.connectionStatus === "requires_attention" && <p className="gateway-attention"><AlertCircle size={13} /> Credentials saved, but no verified payment adapter is connected.</p>}
           {saved?.connectionStatus === "connected" && <p className="gateway-connected"><CheckCircle2 size={13} /> Payment adapter connected.</p>}
+          <div className="gateway-availability"><AlertCircle size={13} /><span>{connectionStatus === "connected" ? saved.enabled ? "Provider adapter is connected." : "Adapter connected; enable it when ready for checkout." : "Checkout unavailable until a verified adapter is installed."}</span></div>
         </Panel>;
       })}
     </div>}
-    <Panel title="Integration status" className="payment-readiness-panel">
-      <p className="payment-section-note">The available gateway adapters have not been verified or installed for this platform. Credentials remain securely stored, but are not used to charge customers and must not be treated as a successful connection.</p>
-      <PaymentProviderCatalog />
-    </Panel>
   </div>;
 }

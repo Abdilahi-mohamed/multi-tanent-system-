@@ -178,9 +178,9 @@ export function SupportChat({ role }) {
 
   const conversation = thread?.conversation;
   const messages = thread?.messages || [];
-  const title = isAdmin ? "Customer Support Inbox" : "Customer Support / Chat";
+  const title = isAdmin ? "Customer Support Inbox" : "Support & chat";
 
-  return <div className={`page-content chat-page ${isAdmin ? "platform-support-page" : ""}`}>
+  return <div className={`page-content chat-page ${isAdmin ? "platform-support-page" : "tenant-support-chat-page"}`}>
     <PageHeader
       eyebrow={isAdmin ? "BUSINESS SUPPORT" : "CUSTOMER SUPPORT"}
       title={title}
