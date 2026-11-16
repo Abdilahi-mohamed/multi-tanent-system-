@@ -84,7 +84,9 @@ export function AppShell({ role, children }) {
   if (checking) return <div className="screen-message">Checking your secure session…</div>;
   if (!user) return <div className="screen-message"><p>{error}</p><a className="button primary" href="/login">Sign in</a></div>;
 
-  const title = sections.flatMap((section) => section.items).find((item) => item.href === pathname)?.label || (role === "super_admin" ? "Platform Overview" : "Store Overview");
+  const title = role === "super_admin" && pathname === "/super-admin/settings"
+    ? "Settings"
+    : sections.flatMap((section) => section.items).find((item) => item.href === pathname)?.label || (role === "super_admin" ? "Platform Overview" : "Store Overview");
   return (
     <div className={`app-shell ${collapsed ? "sidebar-collapsed" : ""}`}>
       <aside className="sidebar">
@@ -98,7 +100,9 @@ export function AppShell({ role, children }) {
             <p className="nav-heading">{section.title}</p>
             {section.items.map(({ label, href, icon: Icon }) => {
               const isPendingView = queryString.includes("status=pending");
-              const isActive = label === "Pending Approvals"
+              const isActive = label === "Platform Revenue"
+                ? false
+                : label === "Pending Approvals"
                 ? pathname === "/super-admin/businesses" && isPendingView
                 : pathname === href && !(label === "All Businesses" && isPendingView);
               return <a className={`nav-item ${isActive ? "active" : ""}`} href={href} key={label} title={label}>
