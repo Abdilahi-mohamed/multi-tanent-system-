@@ -104,7 +104,7 @@ export function OrderSupportInbox({ role = "business_owner" }) {
     }
   }
 
-  return <div className={`page-content chat-page ${isAdmin ? "platform-customer-support-page" : ""}`}>
+  return <div className={`page-content chat-page ${isAdmin ? "platform-customer-support-page" : "tenant-order-chat-page"}`}>
     <PageHeader eyebrow={isAdmin ? "PLATFORM CUSTOMER SUPPORT" : "CUSTOMER COMMUNICATIONS"} title={isAdmin ? "Store Customer Support" : "Order chat & customer support"} description={isAdmin ? "Authorized platform access to order-related storefront conversations." : "Reply to customer questions tied to orders from your storefront."} actions={<button className="button subtle compact" onClick={load}><RefreshCw size={14} /> Refresh</button>} />
     {error && conversations.length > 0 && <p className="inline-error" role="alert">{error}</p>}
     {error && !conversations.length ? <LoadingState error={error} retry={load} /> : loading ? <LoadingState /> : <div className="chat-layout">

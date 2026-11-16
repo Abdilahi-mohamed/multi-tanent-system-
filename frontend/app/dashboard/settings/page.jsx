@@ -5,7 +5,7 @@ import {
   ArrowUpRight, ClipboardCopy, ExternalLink, Link2, Palette,
   Share2, ShoppingBag, Store
 } from "lucide-react";
-import { PageHeader, Panel } from "../../../components/AppShell";
+import { PageHeader, Panel, StatusPill } from "../../../components/AppShell";
 import { api } from "../../../lib/api";
 
 export default function StoreSettingsPage() {
@@ -50,11 +50,11 @@ export default function StoreSettingsPage() {
     }
   }
 
-  return <div className="page-content">
+  return <div className="page-content tenant-storefront-management-page">
     <PageHeader eyebrow="STOREFRONT" title="Storefront Management" description="Manage your public storefront, customer login branding, and sharing links." />
     {error && <p className="inline-error" role="alert">{error}</p>}
     <div className="settings-grid storefront-management-grid">
-      <Panel title="Storefront Management">
+      <Panel title="Catalog">
         <div className="setting-row"><Store /><div><b>Manage your storefront</b><p>Keep your catalog current and review the products and sections customers can browse in your public store.</p></div></div>
         <div className="storefront-card-actions">
           <a className="button subtle compact" href="/dashboard/products"><ShoppingBag size={13} /> Manage products</a>
@@ -62,12 +62,12 @@ export default function StoreSettingsPage() {
         </div>
       </Panel>
 
-      <Panel title="Customer Login Page">
+      <Panel title="Customer login page" action={<StatusPill>Default theme</StatusPill>}>
         <div className="setting-row"><Palette /><div><b>Customize your customer sign-in</b><p>Set your company logo, page colors, welcome message, form layout, and Google button style.</p></div></div>
         <div className="storefront-card-actions"><a className="button primary compact" href="/dashboard/login-page">Customize Login Page <ArrowUpRight size={13} /></a></div>
       </Panel>
 
-      <Panel title="Share Storefront">
+      <Panel title="Share storefront">
         <div className="setting-row"><Share2 /><div><b>Share your public store</b><p>Copy your link or share it on WhatsApp, Facebook, or another supported app.</p></div></div>
         {storeUrl && <a className="store-link-display" href={storeUrl} target="_blank" rel="noreferrer">{storeUrl}</a>}
         <div className="storefront-card-actions">
@@ -79,7 +79,7 @@ export default function StoreSettingsPage() {
         {shareMessage && <p className="footnote" role="status">{shareMessage}</p>}
       </Panel>
 
-      <Panel title="Public Storefront Link">
+      <Panel title="Public storefront link" action={<StatusPill tone={storeUrl ? "active" : "pending"}>{storeUrl ? "Live link" : "Unavailable"}</StatusPill>}>
         <div className="setting-row"><ExternalLink /><div><b>Preview your live storefront</b><p>Open the tenant-specific storefront customers see, using your current public link.</p></div></div>
         {storeUrl && <a className="store-link-display" href={storeUrl} target="_blank" rel="noreferrer">{storeUrl}</a>}
         <div className="storefront-card-actions">

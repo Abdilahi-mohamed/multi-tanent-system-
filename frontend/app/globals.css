@@ -2531,3 +2531,246 @@ td b { color: var(--text); }
   .tenant-orders-page .user-pagination,
   .tenant-payments-page .user-pagination { align-items: flex-start; flex-direction: column; gap: 9px; }
 }
+
+.tenant-payment-gateways-page .page-header,
+.tenant-storefront-management-page .page-header,
+.tenant-order-chat-page .page-header,
+.tenant-support-chat-page .page-header { margin-bottom: 20px; }
+.tenant-payment-gateways-page .page-description,
+.tenant-storefront-management-page .page-description,
+.tenant-order-chat-page .page-description,
+.tenant-support-chat-page .page-description { max-width: 720px; color: var(--text-secondary); font-size: 12px; line-height: 1.6; }
+
+.tenant-payment-gateways-page .payment-safety-banner {
+  margin-bottom: 0;
+  padding: 15px 18px;
+  border-color: var(--gold-line);
+  border-radius: var(--radius-card);
+  background: var(--gold-soft);
+  color: var(--text);
+}
+.tenant-payment-gateways-page .payment-safety-banner > svg { color: var(--gold-hover); }
+.tenant-payment-gateways-page .payment-safety-banner b { color: var(--gold-hover); font-size: 13px; }
+.tenant-payment-gateways-page .payment-safety-banner p { color: var(--text-secondary); font-size: 11px; line-height: 1.6; }
+.gateway-readiness-summary {
+  display: grid;
+  grid-template-columns: auto auto minmax(100px, 1fr) auto;
+  align-items: center;
+  gap: 20px;
+  padding: 16px 19px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+}
+.gateway-readiness-stat { display: flex; flex-direction: column; gap: 4px; }
+.gateway-readiness-stat > span { color: var(--muted); font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.gateway-readiness-stat > b { color: var(--text); font: 700 20px/1.1 "Sora", sans-serif; }
+.gateway-readiness-stat small { margin-left: 5px; color: var(--muted); font: 500 10px "Inter", sans-serif; }
+.gateway-readiness-progress { height: 7px; overflow: hidden; border-radius: 999px; background: var(--surface-raised); }
+.gateway-readiness-progress > span { display: block; height: 100%; border-radius: inherit; background: var(--gold); transition: width .2s ease; }
+.tenant-payment-gateways-page .status-pill { padding: 7px 10px; border: 1px solid rgba(242,132,118,.25); border-radius: 999px; background: var(--error-bg); color: var(--error); font-size: 10px; }
+.tenant-payment-gateways-page .status-pill.active { border-color: rgba(116,209,156,.25); background: var(--success-bg); color: var(--success); }
+.tenant-payment-gateways-page .payment-gateway-grid { gap: 14px; }
+.tenant-payment-gateways-page .payment-gateway-panel { overflow: hidden; border-color: var(--border); border-radius: var(--radius-card); background: var(--surface); }
+.tenant-payment-gateways-page .payment-gateway-panel > .panel-heading { min-height: 54px; padding: 11px 17px; border-color: var(--border); background: var(--surface); }
+.tenant-payment-gateways-page .payment-gateway-panel .panel-heading h2 { color: var(--text); font: 600 14px "Sora", sans-serif; }
+.tenant-payment-gateways-page .gateway-status { gap: 6px; font-size: 10px; }
+.tenant-payment-gateways-page .gateway-status i { width: 7px; height: 7px; }
+.tenant-payment-gateways-page .gateway-status.not_configured { color: var(--muted); }
+.tenant-payment-gateways-page .gateway-status.requires_attention { color: var(--warning); }
+.tenant-payment-gateways-page .gateway-status.connected { color: var(--success); }
+.tenant-payment-gateways-page .payment-gateway-provider { gap: 11px; padding: 15px 17px 0; }
+.payment-provider-icon { display: grid; width: 36px; height: 36px; flex: 0 0 auto; place-items: center; border: 1px solid var(--gold-line); border-radius: 10px; background: var(--gold-soft); color: var(--gold-hover); }
+.tenant-payment-gateways-page .payment-gateway-provider b { color: var(--text); font-size: 12px; }
+.tenant-payment-gateways-page .payment-gateway-provider small,
+.tenant-payment-gateways-page .payment-gateway-description { color: var(--muted); font-size: 10px; }
+.tenant-payment-gateways-page .payment-gateway-description { min-height: 34px; margin: 10px 17px; line-height: 1.55; }
+.tenant-payment-gateways-page .payment-credential-summary { gap: 7px; padding: 0 17px 12px; }
+.tenant-payment-gateways-page .payment-credential-summary span { padding: 5px 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-raised); color: var(--text-secondary); font-size: 9px; }
+.tenant-payment-gateways-page .payment-gateway-form { gap: 11px; padding: 14px 17px; border-color: var(--border); }
+.tenant-payment-gateways-page .payment-gateway-form > label:not(.payment-enable-toggle) { gap: 6px; color: var(--text-secondary); font-size: 10px; }
+.tenant-payment-gateways-page .payment-gateway-form input:not([type="checkbox"]) { min-height: 38px; padding: 0 10px; border-color: var(--border); border-radius: var(--radius-control); background: var(--surface-raised); color: var(--text); font-size: 11px; }
+.tenant-payment-gateways-page .payment-enable-toggle { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 10px; }
+.tenant-payment-gateways-page .payment-enable-toggle input { accent-color: var(--gold); }
+.tenant-payment-gateways-page .payment-gateway-actions { gap: 8px; padding: 0 17px 13px; }
+.tenant-payment-gateways-page .payment-gateway-actions .button { min-height: 34px; font-size: 10px; }
+.tenant-payment-gateways-page .payment-gateway-form .payment-gateway-actions { padding: 0; }
+.tenant-payment-gateways-page .gateway-attention,
+.tenant-payment-gateways-page .gateway-connected,
+.tenant-payment-gateways-page .gateway-availability { display: flex; align-items: flex-start; gap: 7px; margin: 0; padding: 0 17px 12px; color: var(--warning); font-size: 10px; line-height: 1.5; }
+.tenant-payment-gateways-page .gateway-connected { color: var(--success); }
+.tenant-payment-gateways-page .gateway-availability { padding-top: 10px; border-top: 1px solid var(--border); color: var(--text-secondary); }
+.tenant-payment-gateways-page .gateway-availability svg { flex: 0 0 auto; color: var(--gold-hover); }
+
+.tenant-storefront-management-page .settings-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.tenant-storefront-management-page .settings-grid > .panel { overflow: hidden; border-color: var(--border); border-radius: var(--radius-card); background: var(--surface); }
+.tenant-storefront-management-page .panel-heading { min-height: 54px; padding: 10px 17px; border-color: var(--border); background: var(--surface); }
+.tenant-storefront-management-page .panel-heading h2 { color: var(--text); font: 600 14px "Sora", sans-serif; text-transform: none; }
+.tenant-storefront-management-page .panel-heading .status-pill { padding: 6px 9px; border: 1px solid var(--gold-line); border-radius: 999px; background: var(--gold-soft); color: var(--gold-hover); font-size: 9px; }
+.tenant-storefront-management-page .panel-heading .status-pill.active { border-color: rgba(116,209,156,.25); background: var(--success-bg); color: var(--success); }
+.tenant-storefront-management-page .setting-row { gap: 12px; padding: 17px 17px 12px; }
+.tenant-storefront-management-page .setting-row > svg { width: 34px; height: 34px; flex: 0 0 auto; padding: 8px; border: 1px solid var(--gold-line); border-radius: 10px; background: var(--gold-soft); color: var(--gold-hover); }
+.tenant-storefront-management-page .setting-row b { color: var(--text); font-size: 12px; }
+.tenant-storefront-management-page .setting-row p { margin-top: 5px; color: var(--text-secondary); font-size: 10px; line-height: 1.6; }
+.tenant-storefront-management-page .storefront-card-actions { gap: 8px; padding: 4px 17px 16px; }
+.tenant-storefront-management-page .storefront-card-actions .button { min-height: 34px; padding: 0 11px; border-radius: 8px; font-size: 10px; }
+.tenant-storefront-management-page .store-link-display { margin: 0 17px 10px; padding: 9px 10px; border-color: var(--border); border-radius: 8px; background: var(--surface-raised); color: var(--gold-hover); font-size: 10px; }
+.tenant-storefront-management-page .facebook-share-icon { background: var(--gold); color: var(--gold-ink); }
+.tenant-storefront-management-page .footnote { padding: 0 17px 14px; color: var(--text-secondary); font-size: 10px; }
+.tenant-storefront-management-page .button[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+
+.tenant-order-chat-page .chat-layout,
+.tenant-support-chat-page .chat-layout {
+  height: min(660px, calc(100vh - 230px));
+  min-height: 480px;
+  grid-template-columns: minmax(240px, .92fr) minmax(300px, 1.42fr) minmax(240px, .9fr);
+  border-color: var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+}
+.tenant-order-chat-page .chat-list-panel,
+.tenant-order-chat-page .customer-dossier,
+.tenant-support-chat-page .chat-list-panel,
+.tenant-support-chat-page .customer-dossier { border-color: var(--border); background: var(--surface); color: var(--text); }
+.tenant-order-chat-page .customer-dossier,
+.tenant-support-chat-page .customer-dossier { display: flex; flex-direction: column; }
+.tenant-order-chat-page .chat-list-title,
+.tenant-support-chat-page .chat-list-title { align-items: center; padding: 15px 16px 10px; color: var(--text); font-size: 12px; }
+.tenant-order-chat-page .chat-list-title span,
+.tenant-support-chat-page .chat-list-title span { display: inline-grid; min-width: 25px; height: 25px; place-items: center; padding: 0 6px; border: 1px solid var(--gold-line); border-radius: 999px; background: var(--gold-soft); color: var(--gold-hover); font-size: 10px; }
+.tenant-order-chat-page .chat-search,
+.tenant-support-chat-page .chat-search { width: calc(100% - 32px); height: 38px; margin: 0 16px 10px; padding: 0 11px; border-color: var(--border); border-radius: var(--radius-control); background: var(--surface-raised); color: var(--text); font-size: 11px; }
+.tenant-order-chat-page .chat-search:focus,
+.tenant-support-chat-page .chat-search:focus { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold-soft); }
+.tenant-order-chat-page .chat-filters,
+.tenant-support-chat-page .chat-filters { gap: 4px; padding: 0 12px 10px; }
+.tenant-order-chat-page .chat-filters button,
+.tenant-support-chat-page .chat-filters button { min-height: 30px; padding: 0 9px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--text-secondary); font-size: 9px; }
+.tenant-order-chat-page .chat-filters button:hover,
+.tenant-support-chat-page .chat-filters button:hover { background: var(--surface-raised); color: var(--text); }
+.tenant-order-chat-page .chat-filters button.active,
+.tenant-support-chat-page .chat-filters button.active { border-color: var(--gold-line); background: var(--gold-soft); color: var(--gold-hover); }
+.tenant-order-chat-page .conversation-list,
+.tenant-support-chat-page .conversation-list { border-top: 1px solid var(--border); }
+.tenant-order-chat-page .conversation-item,
+.tenant-support-chat-page .conversation-item { gap: 10px; padding: 12px 14px; border-color: var(--border); border-left: 2px solid transparent; background: transparent; color: var(--text); }
+.tenant-order-chat-page .conversation-item:hover,
+.tenant-support-chat-page .conversation-item:hover { background: var(--surface-raised); }
+.tenant-order-chat-page .conversation-item.selected,
+.tenant-support-chat-page .conversation-item.selected { border-left-color: var(--gold); background: var(--gold-soft); }
+.tenant-order-chat-page .conversation-meta b,
+.tenant-support-chat-page .conversation-meta b { color: var(--text); font-size: 10px; }
+.tenant-order-chat-page .conversation-meta small,
+.tenant-order-chat-page .conversation-item > div > small,
+.tenant-support-chat-page .conversation-meta small,
+.tenant-support-chat-page .conversation-item > div > small { color: var(--muted); font-size: 9px; }
+.tenant-order-chat-page .conversation-item p,
+.tenant-support-chat-page .conversation-item p { margin: 4px 0; color: var(--text-secondary); font-size: 10px; }
+.tenant-order-chat-page .support-unread-dot,
+.tenant-support-chat-page .support-unread-dot { background: var(--gold); }
+.tenant-order-chat-page .chat-thread,
+.tenant-support-chat-page .chat-thread { min-width: 0; border-color: var(--border); background: var(--bg); color: var(--text); }
+.tenant-order-chat-page .thread-header,
+.tenant-support-chat-page .thread-header { min-height: 66px; padding: 12px 16px; border-color: var(--border); background: var(--surface); color: var(--text); }
+.tenant-order-chat-page .thread-header b,
+.tenant-support-chat-page .thread-header b { color: var(--text); font-size: 11px; }
+.tenant-order-chat-page .thread-header small,
+.tenant-support-chat-page .thread-header small { color: var(--muted); font-size: 9px; }
+.tenant-order-chat-page .thread-header select,
+.tenant-support-chat-page .thread-header select { min-height: 34px; padding: 0 9px; border-color: var(--border); border-radius: 8px; background: var(--surface-raised); color: var(--text); font-size: 10px; }
+.tenant-order-chat-page .thread-messages,
+.tenant-support-chat-page .thread-messages { gap: 13px; padding: 18px; background: var(--bg); }
+.tenant-order-chat-page .message-bubble,
+.tenant-support-chat-page .message-bubble { padding: 10px 12px; border-color: var(--border); border-radius: 12px 12px 12px 3px; background: var(--surface-raised); color: var(--text); }
+.tenant-order-chat-page .from-merchant .message-bubble,
+.tenant-support-chat-page .from-merchant .message-bubble { border-color: var(--gold-line); border-radius: 12px 12px 3px 12px; background: var(--gold-soft); color: var(--text); }
+.tenant-order-chat-page .message-bubble p,
+.tenant-support-chat-page .message-bubble p { color: var(--text); font-size: 11px; line-height: 1.6; }
+.tenant-order-chat-page .message-bubble small,
+.tenant-support-chat-page .message-bubble small { color: var(--muted); font-size: 8px; }
+.tenant-order-chat-page .from-merchant .message-bubble small,
+.tenant-support-chat-page .from-merchant .message-bubble small { color: var(--text-secondary); }
+.tenant-order-chat-page .composer,
+.tenant-support-chat-page .composer { gap: 9px; padding: 12px; border-color: var(--border); background: var(--surface); }
+.tenant-order-chat-page .composer input,
+.tenant-support-chat-page .composer input { height: 40px; padding: 0 12px; border-color: var(--border); border-radius: 9px; background: var(--surface-raised); color: var(--text); font-size: 11px; }
+.tenant-order-chat-page .customer-dossier,
+.tenant-support-chat-page .customer-dossier { border-right: 0; }
+.tenant-order-chat-page .dossier-heading,
+.tenant-support-chat-page .dossier-heading { margin: 0; padding: 15px 16px; border-bottom: 1px solid var(--border); color: var(--gold-hover); font-size: 9px; letter-spacing: .13em; }
+.tenant-order-chat-page .dossier-profile,
+.tenant-support-chat-page .dossier-profile { gap: 10px; padding: 15px 16px 0; }
+.tenant-order-chat-page .dossier-profile b,
+.tenant-support-chat-page .dossier-profile b { color: var(--text); font-size: 11px; }
+.tenant-order-chat-page .dossier-profile small,
+.tenant-support-chat-page .dossier-profile small { color: var(--muted); font-size: 9px; }
+.tenant-order-chat-page .dossier-order,
+.tenant-support-chat-page .dossier-order { margin: 14px; padding: 12px; border-color: var(--border); border-radius: var(--radius-control); background: var(--surface-raised); }
+.tenant-order-chat-page .dossier-order h3,
+.tenant-support-chat-page .dossier-order h3 { margin-bottom: 10px; color: var(--text); font: 600 11px "Sora", sans-serif; }
+.tenant-order-chat-page .dossier-item { gap: 8px; padding-bottom: 10px; border-color: var(--border); }
+.tenant-order-chat-page .dossier-item b,
+.tenant-support-chat-page .dossier-order b { color: var(--text); font-size: 9px; }
+.tenant-order-chat-page .dossier-item small,
+.tenant-order-chat-page .dossier-info,
+.tenant-support-chat-page .dossier-info { color: var(--muted); font-size: 9px; }
+.tenant-order-chat-page .dossier-info,
+.tenant-support-chat-page .dossier-info { padding: 9px 0 0; border-color: var(--border); }
+.tenant-order-chat-page .dossier-info > b,
+.tenant-support-chat-page .dossier-info > b { color: var(--text); font-size: 9px; }
+.tenant-order-chat-page .dossier-address { padding: 8px; border-radius: 7px; background: var(--surface); color: var(--text-secondary); font-size: 9px; }
+.tenant-order-chat-page .security-note,
+.tenant-support-chat-page .security-note { gap: 8px; margin: 0 14px 14px; padding: 10px; border-color: var(--gold-line); border-radius: 8px; background: var(--gold-soft); color: var(--text-secondary); font-size: 9px; line-height: 1.5; }
+.tenant-order-chat-page .security-note svg,
+.tenant-support-chat-page .security-note svg { flex: 0 0 auto; color: var(--gold-hover); }
+.tenant-order-chat-page .chat-empty,
+.tenant-support-chat-page .chat-empty { align-items: center; justify-content: center; gap: 10px; color: var(--muted); text-align: center; }
+.tenant-order-chat-page .chat-empty > svg,
+.tenant-support-chat-page .chat-empty > svg { width: 40px; height: 40px; padding: 10px; border: 1px solid var(--gold-line); border-radius: 12px; background: var(--gold-soft); color: var(--gold-hover); }
+.tenant-order-chat-page .chat-empty b,
+.tenant-support-chat-page .chat-empty b { color: var(--text); font: 600 14px "Sora", sans-serif; }
+.tenant-order-chat-page .chat-empty p,
+.tenant-support-chat-page .chat-empty p { max-width: 300px; color: var(--text-secondary); font-size: 10px; line-height: 1.6; }
+.tenant-support-chat-page .support-conversation-meta { gap: 6px; }
+.tenant-support-chat-page .support-conversation-meta > small { color: var(--muted); font-size: 8px; }
+.tenant-support-chat-page .support-conversation-meta .status-pill { padding: 4px 7px; font-size: 8px; }
+.tenant-support-chat-page .support-pagination { border-color: var(--border); color: var(--muted); }
+.tenant-support-chat-page .support-new-form { gap: 13px; padding: 20px; }
+.tenant-support-chat-page .support-new-form label { gap: 6px; color: var(--text-secondary); font-size: 10px; }
+.tenant-support-chat-page .support-new-form input,
+.tenant-support-chat-page .support-new-form textarea { padding: 10px; border-color: var(--border); border-radius: 8px; background: var(--surface-raised); color: var(--text); font-size: 11px; }
+.tenant-support-chat-page .support-new-form textarea { min-height: 150px; }
+.tenant-support-chat-page .support-new-form input:focus,
+.tenant-support-chat-page .support-new-form textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold-soft); }
+.tenant-support-chat-page .support-new-form .user-form-footer { gap: 8px; }
+
+@media (max-width: 900px) {
+  .tenant-payment-gateways-page .payment-gateway-grid { grid-template-columns: 1fr; }
+  .tenant-storefront-management-page .settings-grid { grid-template-columns: 1fr; }
+  .tenant-order-chat-page .chat-layout,
+  .tenant-support-chat-page .chat-layout { grid-template-columns: minmax(210px, .8fr) minmax(0, 1.2fr); }
+  .tenant-order-chat-page .customer-dossier,
+  .tenant-support-chat-page .customer-dossier { display: none; }
+}
+@media (max-width: 600px) {
+  .gateway-readiness-summary { grid-template-columns: 1fr 1fr; gap: 13px; }
+  .gateway-readiness-progress { grid-column: 1 / -1; grid-row: 2; }
+  .gateway-readiness-summary > .status-pill { justify-self: start; }
+  .tenant-payment-gateways-page .payment-gateway-form { grid-template-columns: 1fr; }
+  .tenant-payment-gateways-page .payment-gateway-form .payment-enable-toggle,
+  .tenant-payment-gateways-page .payment-gateway-form .payment-gateway-actions { grid-column: 1; }
+  .tenant-order-chat-page .chat-layout,
+  .tenant-support-chat-page .chat-layout { height: auto; min-height: 520px; grid-template-columns: 1fr; }
+  .tenant-order-chat-page .chat-list-panel,
+  .tenant-support-chat-page .chat-list-panel { max-height: 235px; border-right: 0; border-bottom: 1px solid var(--border); }
+  .tenant-order-chat-page .conversation-list,
+  .tenant-support-chat-page .conversation-list { max-height: 140px; }
+  .tenant-order-chat-page .chat-thread,
+  .tenant-support-chat-page .chat-thread { min-height: 340px; }
+  .tenant-order-chat-page .thread-messages,
+  .tenant-support-chat-page .thread-messages { min-height: 205px; }
+  .tenant-support-chat-page .support-new-form { min-height: 380px; }
+  .tenant-order-chat-page .thread-header,
+  .tenant-support-chat-page .thread-header { flex-wrap: wrap; }
+  .tenant-storefront-management-page .storefront-card-actions { align-items: stretch; }
+}
