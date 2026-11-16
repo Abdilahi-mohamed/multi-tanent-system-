@@ -25,6 +25,30 @@ import {
 const app = express();
 const api = express.Router();
 
+function getClientOrigins() {
+  const configuredOrigins = (process.env.CLIENT_ORIGIN || "http://localhost:3000")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  const allowedOrigins = new Set(configuredOrigins.map((origin) => new URL(origin).origin));
+
+  if (!allowedOrigins.size) throw new Error("CLIENT_ORIGIN must contain at least one valid origin.");
+  if (process.env.NODE_ENV !== "production") {
+    for (const origin of [...allowedOrigins]) {
+      const url = new URL(origin);
+      if (url.hostname === "localhost") {
+        url.hostname = "127.0.0.1";
+        allowedOrigins.add(url.origin);
+      } else if (url.hostname === "127.0.0.1") {
+        url.hostname = "localhost";
+        allowedOrigins.add(url.origin);
+      }
+    }
+  }
+
+  return [...allowedOrigins];
+}
+
 function preventPaymentCredentialCaching(_req, res, next) {
   res.set("Cache-Control", "no-store");
   next();
@@ -37,7 +61,7 @@ app.disable("x-powered-by");
 app.use(helmet());
 app.use(
   cors({
-    origin: process.env.CLIENT_ORIGIN || "http://localhost:3000",
+    origin: getClientOrigins(),
     methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key"],
     credentials: true
