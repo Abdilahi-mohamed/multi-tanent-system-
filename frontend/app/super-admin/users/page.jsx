@@ -12,9 +12,12 @@ export default function UserManagementPage() {
   const [users, setUsers] = useState([]);
   const [businesses, setBusinesses] = useState([]);
   const [selectedTenantId, setSelectedTenantId] = useState("");
+  const [companyFilter, setCompanyFilter] = useState("");
+  const [summary, setSummary] = useState({ companyUserCount: 0, companiesWithUsers: 0, paidSubscriptions: 0, platformAdminCount: 0 });
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [form, setForm] = useState(emptyForm);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -32,16 +35,20 @@ export default function UserManagementPage() {
   const loadUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await api(`/admin/users?role=${role}&page=${page}&limit=50&search=${encodeURIComponent(search)}`);
+      const params = new URLSearchParams({ role, page: String(page), limit: "50", search });
+      if (role === "business_owner" && companyFilter) params.set("tenantId", companyFilter);
+      const result = await api(`/admin/users?${params}`);
       setUsers(result.items);
       setPages(result.pages);
+      setTotal(result.total);
+      setSummary(result.summary || { companyUserCount: 0, companiesWithUsers: 0, paidSubscriptions: 0, platformAdminCount: 0 });
       setError("");
     } catch (reason) {
       setError(reason.message);
     } finally {
       setLoading(false);
     }
-  }, [page, role, search]);
+  }, [companyFilter, page, role, search]);
 
   useEffect(() => {
     loadUsers();
@@ -72,6 +79,7 @@ export default function UserManagementPage() {
   function changeRole(nextRole) {
     setRole(nextRole);
     setPage(1);
+    setCompanyFilter("");
     setForm(emptyForm);
     setSuccess("");
     setCompanyCreated(false);
@@ -228,26 +236,25 @@ export default function UserManagementPage() {
 
   const accountLabel = role === "super_admin" ? "platform administrators" : "company accounts";
 
-  return <div className="page-content">
+  return <div className="page-content user-management-page">
     <PageHeader
       eyebrow="USERS & ACCESS"
       title="User management"
       description="Manage business accounts and their owners, billing terms, access, and secure password resets."
-      actions={<span className="live-chip"><i /> {accountLabel}</span>}
+      actions={<div className="user-role-tabs" role="tablist" aria-label="User account type">
+        <button type="button" role="tab" aria-selected={role === "business_owner"} className={role === "business_owner" ? "selected" : ""} onClick={() => changeRole("business_owner")}><Users size={15} /> Company users</button>
+        <button type="button" role="tab" aria-selected={role === "super_admin"} className={role === "super_admin" ? "selected" : ""} onClick={() => changeRole("super_admin")}><ShieldCheck size={15} /> Platform admins</button>
+      </div>}
     />
-
-    <div className="user-role-tabs" role="tablist" aria-label="User account type">
-      <button type="button" role="tab" aria-selected={role === "business_owner"} className={role === "business_owner" ? "selected" : ""} onClick={() => changeRole("business_owner")}><Users size={15} /> Company users</button>
-      <button type="button" role="tab" aria-selected={role === "super_admin"} className={role === "super_admin" ? "selected" : ""} onClick={() => changeRole("super_admin")}><ShieldCheck size={15} /> Platform admins</button>
-    </div>
 
     <div className="user-management-grid">
       <Panel
-        title={role === "super_admin" ? "Platform administrators" : "Company dashboard users"}
-        action={<button className="button primary compact" onClick={() => { setShowForm(!showForm); setError(""); setSuccess(""); }}><UserPlus size={14} /> {showForm ? "Close form" : "Add user"}</button>}
+        title={<>{role === "super_admin" ? "Platform administrators" : "Company dashboard users"}<small className="user-count">{loading ? "Loading…" : `${users.length} shown`}</small></>}
+        className="user-directory-panel"
+        action={<button className="button primary compact" type="button" onClick={() => { setShowForm(!showForm); setError(""); setSuccess(""); }}><UserPlus size={14} /> {showForm ? "Close form" : "Add user"}</button>}
       >
-        {role === "business_owner" && <div className="user-scope-picker"><label htmlFor="user-company">Company</label><select id="user-company" value={selectedTenantId} onChange={(event) => setSelectedTenantId(event.target.value)} disabled={!!businessError}><option value="">Select a company to manage</option>{businesses.map((business) => <option key={business._id} value={business._id}>{business.name} · {business.status}</option>)}</select>{businessError && <small className="user-form-error">{businessError}</small>}</div>}
         {showForm && <form className="user-create-form" onSubmit={createUser}>
+          {role === "business_owner" && <label className="user-create-company">Company<select required value={selectedTenantId} onChange={(event) => setSelectedTenantId(event.target.value)} disabled={!!businessError}><option value="">Select a company</option>{businesses.map((business) => <option key={business._id} value={business._id}>{business.name} · {business.status}</option>)}</select>{businessError && <small className="user-form-error">{businessError}</small>}</label>}
           <div className="form-grid">
             <label>Full name<input required minLength="2" maxLength="120" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} autoComplete="name" /></label>
             <label>Username<input required minLength="3" maxLength="32" pattern="[A-Za-z0-9._-]+" autoCapitalize="none" value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} autoComplete="username" placeholder="company.user" /><small>Letters, numbers, dots, underscores, and hyphens.</small></label>
@@ -270,8 +277,8 @@ export default function UserManagementPage() {
         </form>}
 
         <div className="user-list-toolbar">
+          {role === "business_owner" && <label className="user-company-filter"><span>Company</span><select aria-label="Filter by company" value={companyFilter} onChange={(event) => { setCompanyFilter(event.target.value); setPage(1); }}><option value="">All companies</option>{businesses.map((business) => <option key={business._id} value={business._id}>{business.name}</option>)}</select></label>}
           <label className="table-search"><Search size={15} /><input placeholder="Search business, owner, or username" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} /></label>
-          <span>{loading ? "Loading…" : `${users.length} shown`}</span>
         </div>
         {loading && !users.length ? <LoadingState /> : error && !users.length ? <LoadingState error={error} retry={loadUsers} /> : <div className="table-wrap">
           <table><thead><tr>{role === "business_owner" && <><th>BUSINESS</th><th>OWNER</th><th>LOGIN</th><th>SUBSCRIPTION</th><th>PAYMENT</th><th>BUSINESS STATUS</th></>}<th>ROLE</th>{role === "super_admin" && <><th>ADMIN</th><th>STATUS</th></>}<th>CREATED</th><th>ACTIONS</th></tr></thead><tbody>
@@ -297,10 +304,19 @@ export default function UserManagementPage() {
             {!users.length && <tr><td colSpan={role === "business_owner" ? 9 : 5} className="empty-table">{search ? "No users match your search." : `No ${accountLabel} have been created yet.`}</td></tr>}
           </tbody></table>
         </div>}
-        <div className="user-pagination"><button className="button subtle compact" disabled={page <= 1 || loading} onClick={() => setPage(page - 1)}>Previous</button><span>Page {page} of {Math.max(pages, 1)}</span><button className="button subtle compact" disabled={page >= pages || loading} onClick={() => setPage(page + 1)}>Next</button></div>
+        <div className="user-pagination"><span>Showing {users.length ? `${(page - 1) * 50 + 1}–${Math.min(page * 50, total)}` : "0"} of {total}</span><div><button className="button subtle compact" disabled={page <= 1 || loading} onClick={() => setPage(page - 1)}>Previous</button><span>Page {page} of {Math.max(pages, 1)}</span><button className="button subtle compact" disabled={page >= pages || loading} onClick={() => setPage(page + 1)}>Next</button></div></div>
       </Panel>
 
-      <aside className="user-security-note"><KeyRound size={17} /><div><b>Account access</b><p>Only platform administrators can create accounts. Users sign in with their username and password. Company users are restricted to the company assigned here. Passwords are stored as secure hashes and are never shown in this list.</p></div></aside>
+      <div className="user-sidebar-stack">
+        <aside className="user-security-note"><KeyRound size={17} /><div><b>How access works</b><p>Only platform administrators can create accounts. Users sign in with their username and password.</p><p>Company users are restricted to the company assigned here. Passwords are stored as secure hashes and are never shown in this list.</p></div></aside>
+        <Panel title="Access summary" className="user-access-summary">
+          <div className="user-summary-list">
+            <div><span>Company users</span><b>{summary.companyUserCount}</b></div>
+            <div><span>Companies with users</span><b>{summary.companiesWithUsers}</b></div>
+            <div><span>Paid subscriptions</span><b>{summary.paidSubscriptions}</b></div>
+          </div>
+        </Panel>
+      </div>
     </div>
     {editingUser && editForm && <div className="user-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setEditingUser(null); setEditForm(null); } }}>
       <section className="user-dialog" role="dialog" aria-modal="true" aria-labelledby="edit-user-title">

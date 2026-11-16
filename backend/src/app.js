@@ -1520,6 +1520,7 @@ api.get("/admin/customers", authenticate, requireRole("super_admin"), async (req
   try {
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+    const activeSince = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const filter = {};
     if (typeof req.query.search === "string" && req.query.search.trim()) {
       const escaped = req.query.search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -1533,14 +1534,26 @@ api.get("/admin/customers", authenticate, requireRole("super_admin"), async (req
       CustomerAccount.countDocuments(filter)
     ]);
     const customerIds = customers.map((customer) => customer._id);
-    const [orderCounts, recentOrders] = await Promise.all([
+    const [orderCounts, recentOrders, totalCustomers, recentlyActiveCustomers, disabledCustomers, orderSummary] = await Promise.all([
       Order.aggregate([
         { $match: { customerId: { $in: customerIds } } },
-        { $group: { _id: "$customerId", orderCount: { $sum: 1 }, lastOrderAt: { $max: "$createdAt" } } }
+        { $group: { _id: "$customerId", orderCount: { $sum: 1 }, recordedOrderValue: { $sum: "$total" }, lastOrderAt: { $max: "$createdAt" } } }
       ]),
       Order.find({ customerId: { $in: customerIds } })
         .select("+customerId orderNumber total createdAt tenantId")
-        .sort({ createdAt: -1 }).limit(1000).populate("tenantId", "name slug").lean()
+        .sort({ createdAt: -1 }).limit(1000).populate("tenantId", "name slug").lean(),
+      CustomerAccount.countDocuments(),
+      CustomerAccount.countDocuments({ accountStatus: { $ne: "suspended" }, lastLoginAt: { $gte: activeSince } }),
+      CustomerAccount.countDocuments({ accountStatus: "suspended" }),
+      Order.aggregate([
+        { $match: { customerId: { $ne: null } } },
+        { $group: {
+          _id: null,
+          totalOrders: { $sum: 1 },
+          recordedOrderValue: { $sum: "$total" },
+          pendingPaymentOrders: { $sum: { $cond: [{ $eq: ["$paymentStatus", "pending"] }, 1, 0] } }
+        } }
+      ])
     ]);
     const countsByCustomer = new Map(orderCounts.map((entry) => [String(entry._id), entry]));
     const ordersByCustomer = new Map();
@@ -1554,10 +1567,25 @@ api.get("/admin/customers", authenticate, requireRole("super_admin"), async (req
       ...customer,
       accountStatus: customer.accountStatus || "active",
       orderCount: countsByCustomer.get(String(customer._id))?.orderCount || 0,
+      recordedOrderValue: countsByCustomer.get(String(customer._id))?.recordedOrderValue || 0,
       lastOrderAt: countsByCustomer.get(String(customer._id))?.lastOrderAt || null,
       orders: ordersByCustomer.get(String(customer._id)) || []
     }));
-    res.json({ items, page, pages: Math.ceil(total / limit), total });
+    const orderTotals = orderSummary[0] || {};
+    res.json({
+      items,
+      page,
+      pages: Math.ceil(total / limit),
+      total,
+      summary: {
+        totalCustomers,
+        recentlyActiveCustomers,
+        disabledCustomers,
+        totalOrders: orderTotals.totalOrders || 0,
+        recordedOrderValue: orderTotals.recordedOrderValue || 0,
+        pendingPaymentOrders: orderTotals.pendingPaymentOrders || 0
+      }
+    });
   } catch (error) {
     next(error);
   }
@@ -1584,6 +1612,12 @@ api.get("/admin/users", authenticate, requireRole("super_admin"), async (req, re
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
     const filter = {};
     if (["super_admin", "business_owner"].includes(req.query.role)) filter.role = req.query.role;
+    if (typeof req.query.tenantId === "string" && req.query.tenantId) {
+      if (req.query.role !== "business_owner" || !mongoose.isValidObjectId(req.query.tenantId)) {
+        return res.status(400).json({ error: "Select a valid business to filter company users." });
+      }
+      filter.tenantId = req.query.tenantId;
+    }
     if (typeof req.query.search === "string" && req.query.search.trim()) {
       const escaped = req.query.search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const ownerFilter = { name: new RegExp(escaped, "i") };
@@ -1597,7 +1631,7 @@ api.get("/admin/users", authenticate, requireRole("super_admin"), async (req, re
         ...(businessIds.length ? [{ tenantId: { $in: businessIds } }] : [])
       ];
     }
-    const [items, total] = await Promise.all([
+    const [items, total, companyUserCount, companyIds, platformAdminCount] = await Promise.all([
       User.find(filter)
         .select("name username email role tenantId active createdAt")
         .sort({ createdAt: -1 })
@@ -1605,9 +1639,24 @@ api.get("/admin/users", authenticate, requireRole("super_admin"), async (req, re
         .limit(limit)
         .populate("tenantId", "name slug ownerName email phone category description subscriptionFee billingCurrency billingFrequency status createdAt")
         .lean(),
-      User.countDocuments(filter)
+      User.countDocuments(filter),
+      User.countDocuments({ role: "business_owner" }),
+      User.distinct("tenantId", { role: "business_owner", tenantId: { $ne: null } }),
+      User.countDocuments({ role: "super_admin" })
     ]);
-    res.json({ items, page, pages: Math.ceil(total / limit), total });
+    const paidSubscriptions = companyIds.length ? await Tenant.countDocuments({
+      _id: { $in: companyIds },
+      subscriptionFee: { $gt: 0 },
+      billingCurrency: { $type: "string", $ne: "" },
+      billingFrequency: { $in: ["monthly", "yearly"] }
+    }) : 0;
+    res.json({
+      items,
+      page,
+      pages: Math.ceil(total / limit),
+      total,
+      summary: { companyUserCount, companiesWithUsers: companyIds.length, paidSubscriptions, platformAdminCount }
+    });
   } catch (error) {
     next(error);
   }

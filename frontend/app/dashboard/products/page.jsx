@@ -174,7 +174,7 @@ export default function ProductsPage() {
   });
   const selectedSection = sections.find((section) => section._id === form.sectionId);
 
-  return <div className="page-content">
+  return <div className="page-content tenant-catalog-page">
     <PageHeader eyebrow="CATALOG & STOCK" title="Products & variants" description="Manage product details, configurable variants, images, publication, and variant-level inventory." actions={<><a className="button subtle" href="/dashboard/sections">Manage sections</a><button className="button primary" onClick={() => { setEditingId(""); setForm(blankProduct(sectionFilter)); setShowForm(!showForm); }}><Plus size={16} /> Add product</button></>} />
     {notice && <div className="inline-success">{notice}<button onClick={() => setNotice("")} aria-label="Dismiss"><X size={14} /></button></div>}
     {showForm && <Panel title={editingId ? `Edit product${selectedSection ? ` · ${selectedSection.name}` : ""}` : `Create product${selectedSection ? ` · ${selectedSection.name}` : ""}`} className="form-panel">

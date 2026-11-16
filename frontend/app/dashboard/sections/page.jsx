@@ -108,7 +108,7 @@ export default function ProductSectionsPage() {
     `${section.name} ${section.description}`.toLowerCase().includes(search.trim().toLowerCase())
   );
 
-  return <div className="page-content">
+  return <div className="page-content tenant-sections-page">
     <PageHeader eyebrow="CATALOG ORGANIZATION" title="Product Sections" description="Organize storefront products into sections. Add products directly to the section where they belong." actions={<button className="button primary" onClick={() => openForm()}><Plus size={15} /> New section</button>} />
     {error && <p className="inline-error" role="alert">{error}</p>}
     {showForm && <Panel title={editingId ? "Edit section" : "Create section"} className="form-panel">

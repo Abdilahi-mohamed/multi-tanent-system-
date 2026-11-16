@@ -186,7 +186,7 @@ export default function PlatformPaymentsPage() {
 
   const metrics = data?.metrics;
 
-  return <div className="page-content">
+  return <div className="page-content payment-management-page">
     <PageHeader eyebrow="COMMERCE MONITORING" title="Payment management" description="Review recorded order payment statuses across tenants and check provider readiness." actions={<a className="button subtle" href="/super-admin/audit">Review audit log</a>} />
 
     <div className="payment-safety-banner"><ShieldCheck size={18} /><div><b>Online payment processing is not configured</b><p>Provider API keys can be stored securely below, but checkout cannot charge customers until a verified payment adapter and webhook are installed.</p></div></div>
