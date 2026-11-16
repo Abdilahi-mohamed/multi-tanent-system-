@@ -1606,3 +1606,208 @@ td b { color: var(--text); }
   .admin-side-nav, .tenant-side-nav { padding: 12px 7px 8px; }
   .sidebar-bottom { padding: 8px 4px; }
 }
+
+.topbar { min-height: 68px; height: auto; padding: 10px 32px; }
+.global-search { height: 40px; padding: 0 12px; border-radius: var(--radius-control); background: var(--surface); }
+.global-search input { width: 220px; font-size: 13px; }
+.global-search kbd { padding: 2px 6px; border-radius: 6px; font-size: 10px; }
+.topbar-actions { gap: 10px; }
+.notification-button { width: 40px; height: 40px; border: 1px solid var(--border); border-radius: var(--radius-control); }
+.top-avatar { width: 36px; height: 36px; border: 1px solid var(--gold-line); background: var(--gold-soft); color: var(--gold-hover); }
+.admin-overview .page-header { margin-bottom: 22px; }
+.admin-overview .page-header h1 { font-size: 30px; }
+.admin-overview .page-description { font-size: 14px; }
+.admin-overview .header-actions { gap: 10px; }
+.admin-overview .button { min-height: 40px; padding: 0 16px; border-radius: var(--radius-control); font-size: 13px; }
+.admin-overview .button.primary { background: var(--gold); color: #1A1404; }
+.admin-overview .button.primary:hover:not(:disabled) { background: var(--gold-hover); }
+.admin-overview .button.subtle { border-color: var(--gold-line); color: var(--gold-hover); }
+.admin-overview .button.subtle:hover:not(:disabled) { background: var(--gold-soft); }
+.admin-overview .status-pill { padding: 5px 9px; border-radius: 999px; font-size: 11px; }
+.admin-overview .directive-banner {
+  min-height: 88px;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 16px 20px;
+  border: 1px solid var(--gold-line);
+  border-radius: var(--radius-card);
+  background: var(--gold-soft);
+  color: var(--text);
+}
+.admin-overview .directive-icon { width: 36px; height: 36px; border: 1px solid var(--gold-line); border-radius: 10px; background: rgba(212,175,55,.16); color: var(--gold-hover); }
+.admin-overview .directive-banner b { color: var(--gold-hover); font-size: 14px; }
+.admin-overview .directive-banner p { color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
+.admin-overview .directive-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 10px; }
+.admin-overview .metric-grid { gap: 14px; margin-bottom: 14px; }
+.admin-overview .metric-card {
+  min-height: 118px;
+  padding: 16px 18px;
+  border-color: var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+}
+.admin-overview .metric-card p { margin-bottom: 7px; color: var(--text-secondary); font-size: 12px; font-weight: 500; }
+.admin-overview .metric-card strong { font: 700 28px/1.1 "Sora", sans-serif; color: var(--text); letter-spacing: -.02em; }
+.admin-overview .metric-card small { margin-top: 6px; color: var(--muted); font-size: 11px; }
+.admin-overview .metric-icon { width: 36px; height: 36px; border: 1px solid var(--gold-line); border-radius: 10px; background: var(--gold-soft); color: var(--gold); }
+.admin-overview .metric-icon.green { border-color: rgba(116,209,156,.3); background: rgba(116,209,156,.11); color: var(--success); }
+.admin-overview .metric-icon.amber { border-color: rgba(242,181,82,.3); background: rgba(242,181,82,.11); color: var(--warning); }
+.admin-overview .metric-icon.red { border-color: rgba(242,132,118,.3); background: rgba(242,132,118,.11); color: var(--error); }
+.admin-overview .metric-icon.muted { border-color: var(--border); background: var(--surface-raised); color: var(--muted); }
+.admin-overview .small-metrics .metric-card { min-height: 104px; padding-top: 14px; }
+.admin-overview .small-metrics .metric-card strong { font-size: 23px; }
+.admin-overview .dashboard-columns { gap: 16px; margin-top: 16px; }
+.admin-overview .admin-columns { grid-template-columns: minmax(0, 1.9fr) minmax(320px, 1fr); }
+.admin-overview .stack { gap: 16px; }
+.admin-overview .panel { border-color: var(--border); border-radius: var(--radius-card); background: var(--surface); }
+.admin-overview .panel-heading { min-height: 50px; padding: 0 18px; border-color: var(--border); background: var(--surface); }
+.admin-overview .panel-heading h2 { font: 600 15px "Sora", sans-serif; color: var(--text); }
+.admin-overview .text-link { font-size: 12px; }
+.admin-overview .quiet-label { color: var(--gold-hover); font-size: 10px; }
+.admin-overview th { padding: 10px 14px; border-color: var(--border); background: var(--surface); color: var(--muted); font-size: 10px; }
+.admin-overview td { padding: 12px 14px; border-color: var(--border); color: var(--text-secondary); font-size: 12px; }
+.admin-overview td b { color: var(--text); font-size: 13px; }
+.admin-overview .business-cell { gap: 10px; }
+.admin-overview .business-cell small { color: var(--muted); font-size: 11px; }
+.admin-overview .square-logo { width: 32px; height: 32px; border-color: var(--gold-line); border-radius: 9px; background: var(--gold-soft); color: var(--gold-hover); font-size: 10px; }
+.admin-overview .status-pill { font-size: 10px; }
+.admin-overview .activity-list { padding: 2px 18px; }
+.admin-overview .activity-row { gap: 12px; padding: 13px 0; border-color: var(--border); }
+.admin-overview .activity-row b, .admin-overview .audit-line b { font-size: 12px; color: var(--text); }
+.admin-overview .activity-row p { margin-top: 3px; color: var(--muted); font-size: 11px; }
+.admin-overview .activity-row > small { color: var(--muted); font-size: 10px; }
+.admin-overview .timeline-dot, .admin-overview .blue-dot { border-color: var(--gold-line); background: var(--gold); box-shadow: 0 0 0 3px var(--gold-soft); }
+.admin-overview .health-checks { padding: 5px 18px; }
+.admin-overview .health-checks > div { gap: 9px; padding: 11px 0; border-color: var(--border); color: var(--text-secondary); font-size: 12px; }
+.admin-overview .health-checks b { color: var(--text); font-size: 11px; }
+.admin-overview .health-dot { flex: 0 0 auto; }
+.admin-overview .approval-empty { display: flex; min-height: 184px; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 20px; text-align: center; }
+.admin-overview .approval-empty > span { display: grid; width: 48px; height: 48px; place-items: center; border: 1px solid rgba(116,209,156,.3); border-radius: 14px; background: rgba(116,209,156,.11); color: var(--success); }
+.admin-overview .approval-empty b { color: var(--text); font: 600 15px "Sora", sans-serif; }
+.admin-overview .approval-empty small { color: var(--muted); font-size: 11px; }
+.admin-overview .audit-line { gap: 11px; padding: 12px 18px; border-color: var(--border); }
+.admin-overview .audit-line small { color: var(--muted); font-size: 10px; }
+@media (max-width: 800px) {
+  .topbar { min-height: 60px; padding: 8px 18px; }
+  .admin-overview .admin-columns { grid-template-columns: 1fr; }
+  .admin-overview .directive-actions { align-items: flex-start; flex-direction: column; }
+}
+@media (max-width: 560px) {
+  .topbar { min-height: 45px; padding: 0 9px; }
+  .admin-overview .page-header h1 { font-size: 22px; }
+  .admin-overview .page-description { font-size: 12px; }
+  .admin-overview .directive-banner { flex-wrap: wrap; padding: 13px; }
+  .admin-overview .directive-banner > div:nth-child(2) { min-width: calc(100% - 52px); }
+  .admin-overview .directive-actions { width: 100%; flex-direction: row; flex-wrap: wrap; }
+  .admin-overview .metric-card { min-height: 98px; padding: 12px; }
+  .admin-overview .metric-card strong { font-size: 22px; }
+  .admin-overview .small-metrics .metric-card { min-height: 90px; }
+}
+
+.businesses-page .business-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 0; }
+.businesses-page .business-metrics .metric-card { min-height: 112px; padding: 15px 17px; border-radius: var(--radius-card); }
+.businesses-page .business-metrics .metric-card p { margin-bottom: 7px; color: var(--text-secondary); font-size: 12px; }
+.businesses-page .business-metrics .metric-card strong { font: 700 26px/1.1 "Sora", sans-serif; }
+.businesses-page .business-metrics .metric-card small { margin-top: 5px; }
+.businesses-directory { border-radius: var(--radius-card); }
+.businesses-directory-heading { min-height: 60px; padding: 10px 18px; }
+.businesses-directory-heading h2 { display: flex; align-items: baseline; gap: 9px; font: 600 15px "Sora", sans-serif; }
+.businesses-directory-heading h2 small, .audit-total { color: var(--muted); font: 400 11px "Inter", system-ui, sans-serif; }
+.business-directory-filters { display: flex; align-items: center; gap: 9px; }
+.business-directory-filters .table-search { height: 36px; }
+.business-directory-filters .table-search input { width: 205px; font-size: 12px; }
+.business-directory-filters select, .audit-filters select {
+  height: 36px;
+  padding: 0 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface-raised);
+  color: var(--text);
+  font-size: 12px;
+}
+.businesses-directory .table-wrap table { min-width: 1010px; }
+.businesses-directory th { padding: 12px 14px; font-size: 10px; }
+.businesses-directory td { padding: 13px 14px; font-size: 12px; }
+.businesses-directory td > b { color: var(--text); font-size: 12px; }
+.businesses-directory .business-cell { gap: 10px; }
+.businesses-directory .business-cell b { color: var(--text); font-size: 12px; }
+.businesses-directory .business-cell small, .businesses-directory .table-subline { color: var(--muted); font-size: 10px; }
+.businesses-directory .square-logo { width: 34px; height: 34px; border-color: var(--gold-line); border-radius: 9px; background: var(--gold-soft); color: var(--gold-hover); }
+.businesses-directory .row-actions { display: flex; align-items: center; gap: 5px; }
+.businesses-directory .icon-button { width: 32px; height: 32px; border-radius: 8px; }
+.businesses-pagination, .audit-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 54px; padding: 9px 18px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; }
+.businesses-pagination > div, .audit-pagination > div { display: flex; align-items: center; gap: 10px; }
+.businesses-pagination .button, .audit-pagination .button { min-height: 32px; font-size: 11px; }
+.businesses-pagination .button:disabled, .audit-pagination .button:disabled { opacity: .45; cursor: not-allowed; }
+.businesses-page .footnote { color: var(--muted); font-size: 11px; }
+.businesses-page.pending-businesses-page { gap: 20px; }
+.pending-directory .businesses-directory-heading { min-height: 62px; }
+.business-tabs { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.business-tabs a { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 11px; border: 1px solid transparent; border-radius: 9px; color: var(--text-secondary); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.business-tabs a span { color: var(--muted); font-size: 10px; }
+.business-tabs a:hover { background: var(--surface-raised); color: var(--text); }
+.business-tabs a.active { border-color: var(--gold-line); background: var(--gold-soft); color: var(--gold-hover); }
+.business-tabs a.active span { color: var(--gold-hover); }
+.pending-directory .business-directory-filters .table-search input { width: 190px; }
+.business-empty { display: flex; min-height: 255px; flex-direction: column; align-items: center; justify-content: center; gap: 9px; padding: 28px 20px; text-align: center; }
+.business-empty-icon { display: grid; width: 48px; height: 48px; place-items: center; margin-bottom: 3px; border: 1px solid rgba(116,209,156,.3); border-radius: 14px; background: rgba(116,209,156,.11); color: var(--success); }
+.business-empty h2 { color: var(--text); font: 600 17px "Sora", sans-serif; }
+.business-empty p { max-width: 390px; color: var(--text-secondary); font-size: 12px; }
+.business-empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 9px; margin-top: 8px; }
+.business-notes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.business-notes p { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface); }
+.business-notes b { color: var(--text); font-size: 12px; }
+.business-notes span { color: var(--muted); font-size: 11px; line-height: 1.5; }
+
+.audit-panel { border-radius: var(--radius-card); }
+.audit-panel > .panel-heading { min-height: 58px; padding: 0 18px; }
+.audit-panel .panel-heading h2 { display: flex; align-items: baseline; gap: 9px; }
+.audit-total { font-family: "Inter", system-ui, sans-serif; }
+.audit-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 18px; border-bottom: 1px solid var(--border); }
+.audit-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.audit-tabs button { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 10px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--text-secondary); font-size: 11px; font-weight: 600; cursor: pointer; }
+.audit-tabs button span { color: var(--muted); font-size: 10px; }
+.audit-tabs button:hover { background: var(--surface-raised); color: var(--text); }
+.audit-tabs button.active { border-color: var(--gold-line); background: var(--gold-soft); color: var(--gold-hover); }
+.audit-tabs button.active span { color: var(--gold-hover); }
+.audit-filters { display: flex; align-items: center; gap: 9px; }
+.audit-filters .table-search { height: 36px; }
+.audit-filters .table-search input { width: 220px; font-size: 12px; }
+.audit-table-wrap table { min-width: 850px; }
+.audit-table th { padding: 12px 16px; font-size: 10px; }
+.audit-table td { padding: 13px 16px; font-size: 12px; }
+.audit-table td b { color: var(--text); font-size: 12px; }
+.audit-table .table-subline { color: var(--muted); font-size: 10px; }
+.audit-event { font-family: "JetBrains Mono", ui-monospace, monospace; font-weight: 500 !important; }
+.audit-category { display: inline-flex; align-items: center; min-height: 23px; padding: 0 9px; border: 1px solid var(--gold-line); border-radius: 999px; background: var(--gold-soft); color: var(--gold-hover); font-size: 10px; font-weight: 600; }
+.audit-category.orders { border-color: rgba(116,209,156,.3); background: rgba(116,209,156,.1); color: var(--success); }
+.audit-category.products { border-color: var(--gold-line); background: var(--gold-soft); color: var(--gold-hover); }
+.audit-category.support { border-color: rgba(242,181,82,.3); background: rgba(242,181,82,.1); color: var(--warning); }
+.audit-category.business { border-color: var(--border); background: var(--surface-raised); color: var(--text-secondary); }
+.audit-pagination { border-top: 1px solid var(--border); }
+
+@media (max-width: 900px) {
+  .businesses-page .business-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .audit-toolbar { align-items: flex-start; flex-direction: column; }
+  .audit-filters { width: 100%; }
+  .audit-filters .table-search { flex: 1; }
+  .audit-filters .table-search input { width: 100%; }
+}
+@media (max-width: 600px) {
+  .businesses-page .business-metrics { gap: 9px; }
+  .businesses-page .business-metrics .metric-card { min-height: 98px; padding: 12px; }
+  .businesses-page .business-metrics .metric-card strong { font-size: 22px; }
+  .businesses-directory-heading { align-items: stretch; flex-direction: column; }
+  .business-directory-filters { width: 100%; }
+  .business-directory-filters .table-search { flex: 1; min-width: 0; }
+  .business-directory-filters .table-search input { width: 100%; }
+  .business-tabs { width: 100%; overflow-x: auto; }
+  .business-tabs a { padding: 0 8px; }
+  .business-notes { grid-template-columns: 1fr; }
+  .businesses-pagination, .audit-pagination { align-items: flex-start; flex-direction: column; }
+  .businesses-pagination > div, .audit-pagination > div { width: 100%; justify-content: space-between; }
+  .audit-panel > .panel-heading { gap: 8px; padding: 10px 12px; }
+  .audit-toolbar { padding: 10px 12px; }
+  .audit-filters { align-items: stretch; flex-direction: column; }
+  .audit-filters select { width: 100%; }
+}

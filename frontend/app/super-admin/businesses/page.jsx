@@ -1,9 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Building2, Check, KeyRound, Pencil, Plus, Search, X } from "lucide-react";
+import { Activity, Building2, Check, CircleDollarSign, Clock3, KeyRound, Pencil, Plus, Search, X } from "lucide-react";
 import { api, shortDate } from "../../../lib/api";
-import { LoadingState, PageHeader, Panel, StatusPill } from "../../../components/AppShell";
+import { LoadingState, MetricCard, PageHeader, Panel, StatusPill } from "../../../components/AppShell";
+
+const emptySummary = {
+  totalBusinesses: 0,
+  activeBusinesses: 0,
+  pendingBusinesses: 0,
+  suspendedBusinesses: 0,
+  rejectedBusinesses: 0,
+  paidPlanBusinesses: 0
+};
 
 const emptyCompany = {
   name: "", slug: "", ownerName: "", email: "", phone: "", category: "Retail", description: "",
@@ -17,8 +26,13 @@ function slugFromName(value) {
 
 export default function BusinessesPage() {
   const [businesses, setBusinesses] = useState([]);
+  const [summary, setSummary] = useState(emptySummary);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [busy, setBusy] = useState("");
@@ -29,8 +43,23 @@ export default function BusinessesPage() {
   const [editing, setEditing] = useState(null);
   const [editForm, setEditForm] = useState(null);
 
-  const load = useCallback(() => api(`/admin/businesses?limit=100&search=${encodeURIComponent(search)}${status ? `&status=${status}` : ""}`)
-    .then((result) => { setBusinesses(result.items); setError(""); }).catch((reason) => setError(reason.message)), [search, status]);
+  const load = useCallback(() => {
+    setLoading(true);
+    return api(`/admin/businesses?page=${page}&limit=10&search=${encodeURIComponent(search)}${status ? `&status=${status}` : ""}`)
+      .then((result) => {
+        if (page > Math.max(1, result.pages)) {
+          setPage(Math.max(1, result.pages));
+          return;
+        }
+        setBusinesses(result.items);
+        setTotal(result.total);
+        setPages(result.pages);
+        setSummary(result.summary || emptySummary);
+        setError("");
+      })
+      .catch((reason) => setError(reason.message))
+      .finally(() => setLoading(false));
+  }, [page, search, status]);
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
     const requestedStatus = query.get("status");
@@ -132,16 +161,27 @@ export default function BusinessesPage() {
     }
   }
 
-  return <div className="page-content">
+  const pendingView = status === "pending";
+
+  return <div className={`page-content businesses-page${pendingView ? " pending-businesses-page" : ""}`}>
     <PageHeader
       eyebrow="BUSINESS MANAGEMENT"
-      title="All Businesses"
-      description="Create business accounts with owner access and billing terms, edit business information, and manage platform access."
+      title={pendingView ? "Pending approvals" : "All businesses"}
+      description={pendingView
+        ? "Review new business registrations and approve or reject access to the Vendora platform."
+        : "Manage every business on Vendora, review subscription details, and control platform access."}
       actions={<button className="button primary" onClick={() => { setCreating(!creating); setError(""); setSuccess(""); }}><Plus size={15} /> {creating ? "Close form" : "Create company"}</button>}
     />
 
     {success && <p className="user-success" role="status">{success}</p>}
     {error && <p className="inline-error user-message" role="alert">{error}</p>}
+
+    {!pendingView && <div className="metric-grid business-metrics">
+      <MetricCard icon={Building2} label="Total businesses" value={summary.totalBusinesses} note="Across all account statuses" />
+      <MetricCard icon={Activity} label="Active" value={summary.activeBusinesses} note="Approved and operational" tone="green" />
+      <MetricCard icon={Clock3} label="Pending approval" value={summary.pendingBusinesses} note="Awaiting platform review" tone="amber" />
+      <MetricCard icon={CircleDollarSign} label="On paid plan" value={summary.paidPlanBusinesses} note="With recurring billing configured" />
+    </div>}
 
     {creating && <Panel title="New company and administrator">
       <form className="user-create-form" onSubmit={createCompany}>
@@ -172,21 +212,43 @@ export default function BusinessesPage() {
       </form>
     </Panel>}
 
-    <Panel title="Business directory" action={<div className="filter-actions"><label className="table-search"><Search size={15} /><input placeholder="Search business or email" value={search} onChange={(event) => setSearch(event.target.value)} /></label><select value={status} onChange={(event) => setStatus(event.target.value)}><option value="">All statuses</option><option value="pending">Pending</option><option value="active">Active</option><option value="suspended">Suspended</option><option value="rejected">Rejected</option></select></div>}>
-      {error && !businesses.length ? <LoadingState error={error} retry={load} /> : <div className="table-wrap"><table><thead><tr><th>BUSINESS</th><th>OWNER & CONTACT</th><th>CATEGORY</th><th>SUBSCRIPTION</th><th>REGISTERED</th><th>STATUS</th><th>ACTIONS</th></tr></thead><tbody>
+    <section className={`panel businesses-directory${pendingView ? " pending-directory" : ""}`}>
+      <div className="panel-heading businesses-directory-heading">
+        {pendingView
+          ? <div className="business-tabs" role="tablist" aria-label="Business status">
+            <a href="/super-admin/businesses" role="tab" aria-selected="false">All <span>{summary.totalBusinesses}</span></a>
+            <a href="/super-admin/businesses?status=pending" className="active" role="tab" aria-selected="true">Pending <span>{summary.pendingBusinesses}</span></a>
+            <a href="/super-admin/businesses?status=active" role="tab" aria-selected="false">Active <span>{summary.activeBusinesses}</span></a>
+            <a href="/super-admin/businesses?status=suspended" role="tab" aria-selected="false">Suspended <span>{summary.suspendedBusinesses}</span></a>
+          </div>
+          : <h2>Business directory <small>{total} businesses</small></h2>}
+        <div className="business-directory-filters">
+          <label className="table-search"><Search size={15} /><input placeholder={pendingView ? "Search by name or email" : "Search business or email"} value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} /></label>
+          {!pendingView && <select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }} aria-label="Filter by status"><option value="">All statuses</option><option value="pending">Pending</option><option value="active">Active</option><option value="suspended">Suspended</option><option value="rejected">Rejected</option></select>}
+        </div>
+      </div>
+      {loading && !businesses.length ? <LoadingState /> : error && !businesses.length ? <LoadingState error={error} retry={load} /> : pendingView && !businesses.length && !search
+        ? <div className="business-empty"><span className="business-empty-icon"><Check size={24} /></span><h2>All caught up</h2><p>There are no businesses waiting for approval right now.</p><div className="business-empty-actions"><a className="button subtle" href="/super-admin/businesses">View all businesses</a><a className="button subtle" href="/super-admin/audit">View audit log</a></div></div>
+        : <div className="table-wrap"><table><thead><tr><th>BUSINESS</th><th>OWNER & CONTACT</th><th>CATEGORY</th><th>SUBSCRIPTION</th><th>REGISTERED</th><th>STATUS</th><th>ACTIONS</th></tr></thead><tbody>
         {businesses.map((business) => <tr key={business._id}>
           <td><div className="business-cell"><span className="square-logo">{business.name.slice(0, 2).toUpperCase()}</span><div><b>{business.name}</b><small>{business.slug}</small></div></div></td>
-          <td>{business.ownerName}<small className="table-subline">{business.email}</small></td><td>{business.category}</td><td>{business.subscriptionFee == null || !business.billingCurrency || !business.billingFrequency ? "Not configured" : new Intl.NumberFormat("en-US", { style: "currency", currency: business.billingCurrency }).format(business.subscriptionFee)}{business.billingFrequency && <small className="table-subline">{business.billingFrequency}</small>}</td><td>{shortDate(business.createdAt)}</td>
+          <td><b>{business.ownerName}</b><small className="table-subline">{business.email}</small></td><td>{business.category}</td><td>{business.subscriptionFee == null || !business.billingCurrency || !business.billingFrequency ? "Not configured" : new Intl.NumberFormat("en-US", { style: "currency", currency: business.billingCurrency }).format(business.subscriptionFee)}{business.billingFrequency && <small className="table-subline">{business.billingFrequency}</small>}</td><td>{shortDate(business.createdAt)}</td>
           <td><StatusPill tone={business.status}>{business.status}</StatusPill></td>
           <td><div className="row-actions">
             <button className="icon-button" disabled={busy === business._id} onClick={() => startEditing(business)} aria-label={`Edit ${business.name}`} title="Edit company"><Pencil size={15} /></button>
-            {business.status !== "active" && <button className="icon-button success-action" disabled={busy === business._id} onClick={() => changeStatus(business._id, "active")} aria-label="Approve or reactivate"><Check size={16} /></button>}
-            {business.status !== "suspended" && business.status !== "rejected" && <button className="icon-button danger-action" disabled={busy === business._id} onClick={() => changeStatus(business._id, "suspended")} aria-label="Suspend"><X size={16} /></button>}
+            {business.status !== "active" && <button className="icon-button success-action" disabled={busy === business._id} onClick={() => changeStatus(business._id, "active")} aria-label={business.status === "pending" ? `Approve ${business.name}` : `Reactivate ${business.name}`} title={business.status === "pending" ? "Approve" : "Reactivate"}><Check size={16} /></button>}
+            {business.status === "pending"
+              ? <button className="icon-button danger-action" disabled={busy === business._id} onClick={() => changeStatus(business._id, "rejected")} aria-label={`Reject ${business.name}`} title="Reject"><X size={16} /></button>
+              : business.status !== "suspended" && business.status !== "rejected" && <button className="icon-button danger-action" disabled={busy === business._id} onClick={() => changeStatus(business._id, "suspended")} aria-label={`Suspend ${business.name}`} title="Suspend"><X size={16} /></button>}
           </div></td>
         </tr>)}
-        {!businesses.length && <tr><td colSpan="7" className="empty-table">{error || "No businesses match these filters."}</td></tr>}
+        {!businesses.length && <tr><td colSpan="7" className="empty-table">{pendingView ? "No businesses match this search." : "No businesses match these filters."}</td></tr>}
       </tbody></table></div>}
-    </Panel>
+      {!pendingView && <div className="panel-footer businesses-pagination">
+        <span>Showing {total ? `${(page - 1) * 10 + 1}–${Math.min(page * 10, total)} of ${total} businesses` : "0 businesses"}</span>
+        <div><button className="button subtle compact" type="button" disabled={page <= 1 || loading} onClick={() => setPage((current) => current - 1)}>Previous</button><span>Page {page} of {Math.max(1, pages)}</span><button className="button subtle compact" type="button" disabled={page >= pages || loading} onClick={() => setPage((current) => current + 1)}>Next</button></div>
+      </div>}
+    </section>
 
     {editing && editForm && <div className="user-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setEditing(null); setEditForm(null); } }}>
       <section className="user-dialog" role="dialog" aria-modal="true" aria-labelledby="edit-company-title">
@@ -209,6 +271,8 @@ export default function BusinessesPage() {
         </form>
       </section>
     </div>}
-    <p className="footnote">Suspending a business blocks its users’ sign-in. Existing orders and records are retained. Status changes are written to the administrative audit log.</p>
+    {pendingView
+      ? <div className="business-notes"><p><b>Approval checklist</b><span>Confirm business details and owner contact information before approving.</span></p><p><b>Audit trail</b><span>Approvals and status changes are recorded in the administrative audit log.</span></p></div>
+      : <p className="footnote">Suspending a business blocks its users’ sign-in. Existing orders and records are retained. Status changes are written to the administrative audit log.</p>}
   </div>;
 }

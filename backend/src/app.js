@@ -1311,11 +1311,33 @@ api.get("/admin/businesses", authenticate, requireRole("super_admin"), async (re
       const escaped = req.query.search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       filter.$or = [{ name: new RegExp(escaped, "i") }, { email: new RegExp(escaped, "i") }, { slug: new RegExp(escaped, "i") }];
     }
-    const [items, total] = await Promise.all([
+    const [items, total, activeBusinesses, pendingBusinesses, suspendedBusinesses, rejectedBusinesses, paidPlanBusinesses] = await Promise.all([
       Tenant.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
-      Tenant.countDocuments(filter)
+      Tenant.countDocuments(filter),
+      Tenant.countDocuments({ status: "active" }),
+      Tenant.countDocuments({ status: "pending" }),
+      Tenant.countDocuments({ status: "suspended" }),
+      Tenant.countDocuments({ status: "rejected" }),
+      Tenant.countDocuments({
+        subscriptionFee: { $gt: 0 },
+        billingCurrency: { $type: "string", $ne: "" },
+        billingFrequency: { $in: ["monthly", "yearly"] }
+      })
     ]);
-    res.json({ items, page, pages: Math.ceil(total / limit), total });
+    res.json({
+      items,
+      page,
+      pages: Math.ceil(total / limit),
+      total,
+      summary: {
+        totalBusinesses: activeBusinesses + pendingBusinesses + suspendedBusinesses + rejectedBusinesses,
+        activeBusinesses,
+        pendingBusinesses,
+        suspendedBusinesses,
+        rejectedBusinesses,
+        paidPlanBusinesses
+      }
+    });
   } catch (error) {
     next(error);
   }
