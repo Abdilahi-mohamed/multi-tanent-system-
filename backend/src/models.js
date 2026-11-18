@@ -97,7 +97,7 @@ const variantSchema = new Schema(
   { _id: true }
 );
 
-const productSectionSchema = new Schema(
+const productTypeSchema = new Schema(
   {
     tenantId: { type: Schema.Types.ObjectId, ref: "Tenant", required: true, index: true },
     name: { type: String, required: true, trim: true, maxlength: 80 },
@@ -108,7 +108,22 @@ const productSectionSchema = new Schema(
   },
   { timestamps: true }
 );
-productSectionSchema.index({ tenantId: 1, name: 1 }, { unique: true, collation: { locale: "en", strength: 2 } });
+productTypeSchema.index({ tenantId: 1, name: 1 }, { unique: true, collation: { locale: "en", strength: 2 } });
+productTypeSchema.index({ tenantId: 1, displayOrder: 1, createdAt: 1 });
+
+const productSectionSchema = new Schema(
+  {
+    tenantId: { type: Schema.Types.ObjectId, ref: "Tenant", required: true, index: true },
+    typeId: { type: Schema.Types.ObjectId, ref: "ProductType", default: null, index: true },
+    name: { type: String, required: true, trim: true, maxlength: 80 },
+    description: { type: String, default: "", maxlength: 500 },
+    imageUrl: { type: String, default: "" },
+    displayOrder: { type: Number, default: 0, min: 0 },
+    active: { type: Boolean, default: true }
+  },
+  { timestamps: true }
+);
+productSectionSchema.index({ tenantId: 1, typeId: 1, name: 1 }, { unique: true, collation: { locale: "en", strength: 2 } });
 productSectionSchema.index({ tenantId: 1, displayOrder: 1, createdAt: 1 });
 
 const productSchema = new Schema(
@@ -348,6 +363,7 @@ tenantPaymentProviderSchema.index({ tenantId: 1, provider: 1 }, { unique: true }
 export const Tenant = model("Tenant", tenantSchema);
 export const User = model("User", userSchema);
 export const CustomerAccount = model("CustomerAccount", customerAccountSchema);
+export const ProductType = model("ProductType", productTypeSchema);
 export const ProductSection = model("ProductSection", productSectionSchema);
 export const Product = model("Product", productSchema);
 export const Order = model("Order", orderSchema);

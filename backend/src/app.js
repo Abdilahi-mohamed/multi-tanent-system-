@@ -11,7 +11,7 @@ import { z } from "zod";
 import mongoose from "mongoose";
 import { authenticate, createToken, requireRole } from "./auth.js";
 import {
-  AuditLog, Conversation, CustomerAccount, Order, Product, ProductSection, SupportConversation,
+  AuditLog, Conversation, CustomerAccount, Order, Product, ProductSection, ProductType, SupportConversation,
   SupportMessage, Tenant, TenantPaymentProvider, User
 } from "./models.js";
 import { calculateSubtotal } from "./commerce.js";
@@ -229,15 +229,26 @@ const storeSupportRequestSchema = z.object({
 const supportStatusSchema = z.object({
   status: z.enum(["open", "in_progress", "resolved"])
 });
+const catalogImageSchema = z.string().trim().max(350000).refine((value) => {
+  if (!value) return true;
+  const match = value.match(/^data:image\/(?:png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/);
+  if (match) return Buffer.from(match[1], "base64").length <= 256 * 1024;
+  try {
+    return ["http:", "https:"].includes(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+}, "Use a valid HTTPS image URL or a PNG, JPEG, or WebP image smaller than 256 KB.");
 const productSchema = z.object({
   name: z.string().trim().min(2).max(120),
   description: z.string().trim().max(3000).optional().default(""),
   category: z.string().trim().max(80).optional().default("General"),
+  typeId: z.string().regex(/^[a-f\d]{24}$/i).optional(),
   sectionId: z.string().regex(/^[a-f\d]{24}$/i).nullable().optional().default(null),
   price: z.number().finite().nonnegative(),
   promotionalPrice: z.number().finite().nonnegative().nullable().optional().default(null),
-  imageUrl: z.string().trim().url().max(1000).optional().or(z.literal("")).default(""),
-  images: z.array(z.string().trim().url().max(1000)).max(12).optional().default([]),
+  imageUrl: catalogImageSchema.optional().default(""),
+  images: z.array(catalogImageSchema).max(12).optional().default([]),
   isPublished: z.boolean().optional().default(true),
   variants: z.array(
     z.object({
@@ -259,9 +270,17 @@ const productSchema = z.object({
   ).min(1).max(100)
 });
 const productSectionSchema = z.object({
+  typeId: z.string().regex(/^[a-f\d]{24}$/i),
   name: z.string().trim().min(2).max(80),
   description: z.string().trim().max(500).optional().default(""),
-  imageUrl: z.string().trim().url().max(1000).optional().or(z.literal("")).default(""),
+  imageUrl: catalogImageSchema.optional().default(""),
+  displayOrder: z.number().int().min(0).max(10000).optional().default(0),
+  active: z.boolean().optional().default(true)
+});
+const productTypeSchema = z.object({
+  name: z.string().trim().min(2).max(80),
+  description: z.string().trim().max(500).optional().default(""),
+  imageUrl: catalogImageSchema.optional().default(""),
   displayOrder: z.number().int().min(0).max(10000).optional().default(0),
   active: z.boolean().optional().default(true)
 });
@@ -1988,8 +2007,74 @@ api.get("/tenant/products", authenticate, requireRole("business_owner"), async (
       if (!mongoose.isValidObjectId(req.query.sectionId)) return res.status(400).json({ error: "Invalid product section ID." });
       filter.sectionId = req.query.sectionId;
     }
-    const items = await Product.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).populate("sectionId", "name").lean();
+    const items = await Product.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).populate("sectionId", "name typeId").lean();
     res.json({ items });
+  } catch (error) {
+    next(error);
+  }
+});
+
+api.get("/tenant/product-types", authenticate, requireRole("business_owner"), async (req, res, next) => {
+  try {
+    const items = await ProductType.find(withTenantScope(req.user)).sort({ displayOrder: 1, createdAt: 1 }).lean();
+    res.json({ items });
+  } catch (error) {
+    next(error);
+  }
+});
+
+api.post("/tenant/product-types", authenticate, requireRole("business_owner"), async (req, res, next) => {
+  try {
+    const input = parseOrRespond(productTypeSchema, req.body, res);
+    if (!input) return;
+    const tenantId = tenantIdFor(req.user);
+    const duplicate = await ProductType.findOne({ tenantId, name: input.name }).collation({ locale: "en", strength: 2 }).lean();
+    if (duplicate) return res.status(409).json({ error: "A product type with that name already exists." });
+    const productType = await ProductType.create({ ...input, tenantId });
+    await writeAudit({ actor: req.user, action: "product_type.created", targetType: "product_type", targetId: productType._id, tenantId });
+    res.status(201).json({ productType });
+  } catch (error) {
+    if (error.code === 11000) return res.status(409).json({ error: "A product type with that name already exists." });
+    next(error);
+  }
+});
+
+api.patch("/tenant/product-types/:id", authenticate, requireRole("business_owner"), async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid product type ID." });
+    const input = parseOrRespond(productTypeSchema.partial().refine((value) => Object.keys(value).length > 0), req.body, res);
+    if (!input) return;
+    const tenantId = tenantIdFor(req.user);
+    if (input.name) {
+      const duplicate = await ProductType.findOne({ tenantId, _id: { $ne: req.params.id }, name: input.name }).collation({ locale: "en", strength: 2 }).lean();
+      if (duplicate) return res.status(409).json({ error: "A product type with that name already exists." });
+    }
+    const productType = await ProductType.findOneAndUpdate(
+      { _id: req.params.id, tenantId },
+      { $set: input },
+      { new: true, runValidators: true }
+    );
+    if (!productType) return res.status(404).json({ error: "Product type not found." });
+    await writeAudit({ actor: req.user, action: "product_type.updated", targetType: "product_type", targetId: productType._id, tenantId });
+    res.json({ productType });
+  } catch (error) {
+    if (error.code === 11000) return res.status(409).json({ error: "A product type with that name already exists." });
+    next(error);
+  }
+});
+
+api.delete("/tenant/product-types/:id", authenticate, requireRole("business_owner"), async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid product type ID." });
+    const tenantId = tenantIdFor(req.user);
+    const productType = await ProductType.findOne({ _id: req.params.id, tenantId });
+    if (!productType) return res.status(404).json({ error: "Product type not found." });
+    if (await ProductSection.exists({ tenantId, typeId: productType._id })) {
+      return res.status(409).json({ error: "Delete or move this product type’s sections before deleting the type." });
+    }
+    await productType.deleteOne();
+    await writeAudit({ actor: req.user, action: "product_type.deleted", targetType: "product_type", targetId: productType._id, tenantId });
+    res.json({ message: "Product type deleted." });
   } catch (error) {
     next(error);
   }
@@ -2009,7 +2094,10 @@ api.post("/tenant/sections", authenticate, requireRole("business_owner"), async 
     const input = parseOrRespond(productSectionSchema, req.body, res);
     if (!input) return;
     const tenantId = tenantIdFor(req.user);
-    const duplicate = await ProductSection.findOne({ tenantId, name: input.name }).collation({ locale: "en", strength: 2 }).lean();
+    if (!await ProductType.exists({ _id: input.typeId, tenantId })) {
+      return res.status(400).json({ error: "Choose a product type belonging to your business." });
+    }
+    const duplicate = await ProductSection.findOne({ tenantId, typeId: input.typeId, name: input.name }).collation({ locale: "en", strength: 2 }).lean();
     if (duplicate) return res.status(409).json({ error: "A section with that name already exists." });
     const section = await ProductSection.create({ ...input, tenantId });
     await writeAudit({ actor: req.user, action: "product_section.created", targetType: "product_section", targetId: section._id, tenantId });
@@ -2026,8 +2114,14 @@ api.patch("/tenant/sections/:id", authenticate, requireRole("business_owner"), a
     const input = parseOrRespond(productSectionSchema.partial().refine((value) => Object.keys(value).length > 0), req.body, res);
     if (!input) return;
     const tenantId = tenantIdFor(req.user);
+    const existing = await ProductSection.findOne({ _id: req.params.id, tenantId }).select("typeId");
+    if (!existing) return res.status(404).json({ error: "Product section not found." });
+    const typeId = input.typeId || existing.typeId;
+    if (input.typeId && !await ProductType.exists({ _id: input.typeId, tenantId })) {
+      return res.status(400).json({ error: "Choose a product type belonging to your business." });
+    }
     if (input.name) {
-      const duplicate = await ProductSection.findOne({ tenantId, _id: { $ne: req.params.id }, name: input.name }).collation({ locale: "en", strength: 2 }).lean();
+      const duplicate = await ProductSection.findOne({ tenantId, typeId, _id: { $ne: req.params.id }, name: input.name }).collation({ locale: "en", strength: 2 }).lean();
       if (duplicate) return res.status(409).json({ error: "A section with that name already exists." });
     }
     const section = await ProductSection.findOneAndUpdate(
@@ -2069,11 +2163,16 @@ api.post("/tenant/products", authenticate, requireRole("business_owner"), async 
       return res.status(400).json({ error: "Promotional price must be lower than the regular price." });
     }
     const tenantId = tenantIdFor(req.user);
-    if (input.sectionId && !await ProductSection.exists({ _id: input.sectionId, tenantId, active: true })) {
-      return res.status(400).json({ error: "Choose an active product section belonging to your business." });
+    if (!input.typeId || !input.sectionId) {
+      return res.status(400).json({ error: "Choose a product type and one of its sections." });
     }
+    const section = await ProductSection.findOne({ _id: input.sectionId, typeId: input.typeId, tenantId, active: true }).select("_id");
+    if (!section || !await ProductType.exists({ _id: input.typeId, tenantId, active: true })) {
+      return res.status(400).json({ error: "Choose an active product type and section belonging to your business." });
+    }
+    const { typeId, ...productInput } = input;
     const product = await Product.create({
-      ...input,
+      ...productInput,
       variants: input.variants.map(({ _id, ...variant }) => variant),
       imageUrl: input.imageUrl || input.images[0] || "",
       tenantId
@@ -2098,11 +2197,41 @@ api.patch("/tenant/products/:id", authenticate, requireRole("business_owner"), a
     if (promotionalPrice != null && promotionalPrice >= regularPrice) {
       return res.status(400).json({ error: "Promotional price must be lower than the regular price." });
     }
-    const sectionId = Object.hasOwn(input, "sectionId") ? input.sectionId : existing.sectionId;
-    const requiresActiveSection = input.isPublished === true || (Object.hasOwn(input, "sectionId") && Boolean(input.sectionId));
-    if (sectionId && requiresActiveSection && !await ProductSection.exists({ _id: sectionId, tenantId, active: true })) {
-      return res.status(400).json({ error: "Choose an active product section belonging to your business." });
+    const hierarchyProvided = Object.hasOwn(input, "sectionId") || Object.hasOwn(input, "typeId");
+    if (hierarchyProvided && (!input.sectionId || !input.typeId)) {
+      return res.status(400).json({ error: "Choose both a product type and one of its sections." });
     }
+    const sectionId = Object.hasOwn(input, "sectionId") ? input.sectionId : existing.sectionId;
+    const currentSection = existing.sectionId
+      ? await ProductSection.findOne({ _id: existing.sectionId, tenantId }).select("typeId")
+      : null;
+    const requestedTypeId = hierarchyProvided ? input.typeId : currentSection?.typeId;
+    const hierarchyChanged = hierarchyProvided && (
+      String(sectionId) !== String(existing.sectionId || "")
+      || String(input.typeId) !== String(currentSection?.typeId || "")
+    );
+    const requiresActiveSection = input.isPublished === true || hierarchyChanged;
+    if (sectionId && (hierarchyProvided || requiresActiveSection)) {
+      const section = await ProductSection.findOne({ _id: sectionId, tenantId }).select("typeId active");
+      if (!section) return res.status(400).json({ error: "Choose an active product section belonging to your business." });
+      if (hierarchyProvided && (!section.typeId || String(section.typeId) !== input.typeId)) {
+        return res.status(400).json({ error: "The selected section does not belong to the selected product type." });
+      }
+      if (hierarchyProvided && !await ProductType.exists({ _id: input.typeId, tenantId })) {
+        return res.status(400).json({ error: "Choose a product type belonging to your business." });
+      }
+      if (requiresActiveSection && !section.active) {
+        return res.status(400).json({ error: "Choose an active product section belonging to your business." });
+      }
+      if (section.typeId && requiresActiveSection && !await ProductType.exists({
+        _id: requestedTypeId,
+        tenantId,
+        active: true
+      })) {
+        return res.status(400).json({ error: "Choose an active product type belonging to your business." });
+      }
+    }
+    delete input.typeId;
     if (input.variants) {
       const currentIds = new Set(existing.variants.map((variant) => String(variant._id)));
       const incomingIds = new Set();
@@ -2890,7 +3019,13 @@ api.get("/store/:slug", authenticateCustomer, async (req, res, next) => {
   try {
     const tenant = await findActiveTenantBySlug(req.params.slug);
     if (!tenant) return res.status(404).json({ error: "Store not found." });
-    const sections = await ProductSection.find({ tenantId: tenant._id, active: true }).sort({ displayOrder: 1, createdAt: 1 }).lean();
+    const productTypes = await ProductType.find({ tenantId: tenant._id, active: true }).sort({ displayOrder: 1, createdAt: 1 }).lean();
+    const activeTypeIds = productTypes.map((productType) => productType._id);
+    const sections = await ProductSection.find({
+      tenantId: tenant._id,
+      active: true,
+      $or: [{ typeId: null }, { typeId: { $in: activeTypeIds } }]
+    }).sort({ displayOrder: 1, createdAt: 1 }).lean();
     const activeSectionIds = sections.map((section) => section._id);
     const products = await Product.find({
       tenantId: tenant._id,
@@ -2911,6 +3046,7 @@ api.get("/store/:slug", authenticateCustomer, async (req, res, next) => {
         loginPage
       },
       canonicalSlug: tenant.slug,
+      productTypes,
       sections,
       products
     });
@@ -3145,8 +3281,15 @@ api.post("/store/:slug/orders", authLimiter, authenticateCustomer, async (req, r
     const productById = new Map(selectedProducts.map((product) => [String(product._id), product]));
     if (selectedProducts.length !== productIds.length) return res.status(409).json({ error: "One or more products are no longer available." });
     const sectionIds = [...new Set(selectedProducts.map((product) => product.sectionId).filter(Boolean).map(String))];
+    const activeTypes = await ProductType.find({ tenantId: tenant._id, active: true }).select("_id").lean();
+    const activeTypeIds = activeTypes.map((productType) => productType._id);
     const activeSections = sectionIds.length
-      ? await ProductSection.find({ _id: { $in: sectionIds }, tenantId: tenant._id, active: true }).select("_id name").lean()
+      ? await ProductSection.find({
+        _id: { $in: sectionIds },
+        tenantId: tenant._id,
+        active: true,
+        $or: [{ typeId: null }, { typeId: { $in: activeTypeIds } }]
+      }).select("_id name typeId").lean()
       : [];
     const sectionById = new Map(activeSections.map((section) => [String(section._id), section]));
     for (const product of selectedProducts) {
@@ -3182,11 +3325,12 @@ api.post("/store/:slug/orders", authLimiter, authenticateCustomer, async (req, r
       }
       const variant = reserved.variants.id(line.variantId);
       const section = reserved.sectionId ? sectionById.get(String(reserved.sectionId)) : null;
-      if (reserved.sectionId && (!section || !await ProductSection.exists({
-        _id: reserved.sectionId,
-        tenantId: tenant._id,
-        active: true
-      }))) {
+      const sectionIsUnavailable = Boolean(reserved.sectionId) && (
+        !section
+        || !await ProductSection.exists({ _id: reserved.sectionId, tenantId: tenant._id, active: true })
+        || Boolean(section.typeId && !await ProductType.exists({ _id: section.typeId, tenantId: tenant._id, active: true }))
+      );
+      if (sectionIsUnavailable) {
         reservedItems.push({ productId: reserved._id, tenantId: tenant._id, variantId: variant._id, quantity: line.quantity });
         await rollbackReservations();
         return res.status(409).json({ error: "A selected product section is no longer available." });

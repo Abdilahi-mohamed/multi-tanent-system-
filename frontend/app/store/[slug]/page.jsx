@@ -32,6 +32,7 @@ export default function StorefrontPage({ params }) {
   const [slug, setSlug] = useState("");
   const [store, setStore] = useState(null);
   const [error, setError] = useState("");
+  const [typeId, setTypeId] = useState("");
   const [sectionId, setSectionId] = useState("");
   const [productId, setProductId] = useState("");
   const [variantId, setVariantId] = useState("");
@@ -107,6 +108,7 @@ export default function StorefrontPage({ params }) {
     storeLoaded.current = false;
     setStore(null);
     setError("");
+    setTypeId("");
     setSectionId("");
     setProductId("");
     setVariantId("");
@@ -201,13 +203,20 @@ export default function StorefrontPage({ params }) {
 
   useEffect(() => {
     if (!store) return;
+    if (typeId && !store.productTypes.some((productType) => productType._id === typeId)) {
+      setTypeId("");
+      setSectionId("");
+      return;
+    }
     if (sectionId && !store.sections.some((section) => section._id === sectionId)) {
       setSectionId("");
       return;
     }
     const sectionProducts = store.products.filter((item) => {
       const id = item.sectionId?._id || item.sectionId || "";
-      return !sectionId || id === sectionId;
+      const section = store.sections.find((entry) => entry._id === id);
+      const belongsToType = !typeId || String(section?.typeId?._id || section?.typeId || "") === typeId;
+      return belongsToType && (!sectionId || id === sectionId);
     });
     if (!sectionProducts.some((item) => item._id === productId)) {
       const first = sectionProducts[0];
@@ -215,7 +224,7 @@ export default function StorefrontPage({ params }) {
       setVariantId(first?.variants.find((option) => option.stock > 0)?._id || first?.variants[0]?._id || "");
       setQuantity(1);
     }
-  }, [store, sectionId, productId]);
+  }, [store, typeId, sectionId, productId]);
 
   useEffect(() => {
     if (!chatToken) return undefined;
@@ -236,38 +245,70 @@ export default function StorefrontPage({ params }) {
     if (!store) return [];
     return store.products.filter((item) => {
       const id = item.sectionId?._id || item.sectionId || "";
-      return !sectionId || id === sectionId;
+      const section = store.sections.find((entry) => entry._id === id);
+      const belongsToType = !typeId || String(section?.typeId?._id || section?.typeId || "") === typeId;
+      return belongsToType && (!sectionId || id === sectionId);
     });
-  }, [store, sectionId]);
+  }, [store, typeId, sectionId]);
   const visibleProducts = useMemo(() => productsInSection.filter((item) =>
     `${item.name} ${item.category} ${item.description} ${item.variants.map(variantSummary).join(" ")}`
       .toLowerCase().includes(catalogSearch.trim().toLowerCase())
   ), [productsInSection, catalogSearch]);
   const catalogGroups = useMemo(() => {
     if (!store) return [];
-    const groups = store.sections
-      .filter((section) => !sectionId || section._id === sectionId)
+    const groups = store.productTypes
+      .filter((productType) => !typeId || productType._id === typeId)
+      .map((productType) => ({
+        id: productType._id,
+        title: productType.name,
+        description: productType.description,
+        imageUrl: productType.imageUrl,
+        sections: store.sections
+          .filter((section) => String(section.typeId?._id || section.typeId || "") === productType._id
+            && (!sectionId || section._id === sectionId))
+          .map((section) => ({
+            ...section,
+            products: visibleProducts.filter((item) => (item.sectionId?._id || item.sectionId || "") === section._id)
+          }))
+      }));
+    const legacySections = store.sections
+      .filter((section) => !section.typeId && (!sectionId || section._id === sectionId))
       .map((section) => ({
-        id: section._id,
-        title: section.name,
-        description: section.description,
-        imageUrl: section.imageUrl,
+        ...section,
         products: visibleProducts.filter((item) => (item.sectionId?._id || item.sectionId || "") === section._id)
       }));
+    if (legacySections.length) {
+      groups.push({
+        id: "legacy-sections",
+        title: store.tenant.category || "Store",
+        description: "",
+        imageUrl: "",
+        sections: legacySections
+      });
+    }
     if (!sectionId) {
       const categories = [...new Set(visibleProducts
         .filter((item) => !(item.sectionId?._id || item.sectionId))
         .map((item) => item.category || "Other"))];
-      groups.push(...categories.map((category) => ({
-        id: `category:${category}`,
-        title: category,
-        description: "",
-        products: visibleProducts.filter((item) =>
-          !(item.sectionId?._id || item.sectionId) && (item.category || "Other") === category)
-      })));
+      if (categories.length) {
+        groups.push({
+          id: "uncategorized-products",
+          title: store.tenant.category || "Store",
+          description: "",
+          imageUrl: "",
+          sections: categories.map((category) => ({
+            id: `category:${category}`,
+            name: category,
+            description: "",
+            imageUrl: "",
+            products: visibleProducts.filter((item) =>
+              !(item.sectionId?._id || item.sectionId) && (item.category || "Other") === category)
+          }))
+        });
+      }
     }
     return groups;
-  }, [store, sectionId, visibleProducts]);
+  }, [store, typeId, sectionId, visibleProducts]);
   const product = useMemo(() =>
     productsInSection.find((item) => item._id === productId) || productsInSection[0],
   [productsInSection, productId]);
@@ -304,11 +345,33 @@ export default function StorefrontPage({ params }) {
   const stockCount = store?.products.reduce((total, item) =>
     total + item.variants.reduce((stock, option) => stock + option.stock, 0), 0) || 0;
 
+  function chooseType(id) {
+    setTypeId(id);
+    setSectionId("");
+    const candidates = store?.products.filter((item) => {
+      if (!id) return true;
+      const sectionId = item.sectionId?._id || item.sectionId || "";
+      const section = store.sections.find((entry) => entry._id === sectionId);
+      return String(section?.typeId?._id || section?.typeId || "") === id;
+    });
+    const first = candidates?.[0];
+    setProductId(first?._id || "");
+    setVariantId(first?.variants.find((item) => item.stock > 0)?._id || first?.variants[0]?._id || "");
+    setQuantity(1);
+  }
+
   function chooseSection(id) {
+    const section = store?.sections.find((item) => item._id === id);
+    const nextTypeId = id ? String(section?.typeId?._id || section?.typeId || "") : typeId;
+    setTypeId(nextTypeId);
     setSectionId(id);
-    const candidates = id
-      ? store?.products.filter((item) => (item.sectionId?._id || item.sectionId || "") === id)
-      : store?.products;
+    const candidates = store?.products.filter((item) => {
+      const itemSectionId = item.sectionId?._id || item.sectionId || "";
+      if (id) return itemSectionId === id;
+      if (!nextTypeId) return true;
+      const itemSection = store.sections.find((entry) => entry._id === itemSectionId);
+      return String(itemSection?.typeId?._id || itemSection?.typeId || "") === nextTypeId;
+    });
     const first = candidates?.[0];
     setProductId(first?._id || "");
     setVariantId(first?.variants.find((item) => item.stock > 0)?._id || first?.variants[0]?._id || "");
@@ -320,6 +383,28 @@ export default function StorefrontPage({ params }) {
     setProductId(id);
     setVariantId(selected?.variants.find((item) => item.stock > 0)?._id || selected?.variants[0]?._id || "");
     setQuantity(1);
+  }
+
+  function renderProductCards(group) {
+    return group.products.map((item) => {
+      const prices = item.variants.map((option) => option.price ?? item.price);
+      const basePrice = prices.length ? Math.min(item.price, ...prices) : item.price;
+      const productPrice = item.promotionalPrice == null ? basePrice : Math.min(basePrice, item.promotionalPrice);
+      const itemStock = item.variants.reduce((total, option) => total + option.stock, 0);
+      const colorValues = [...new Set(item.variants.map((option) => attributeValue(option, "color")).filter(Boolean))].slice(0, 5);
+      const sizeValues = [...new Set(item.variants.map((option) => attributeValue(option, "size") || attributeValue(option, "number")).filter(Boolean))].slice(0, 7);
+      return <button className={`store-product ${product?._id === item._id ? "selected" : ""}`} aria-pressed={product?._id === item._id} onClick={() => chooseProduct(item._id)} key={item._id}>
+        <div className="store-product-image">{item.imageUrl || item.images?.[0] ? <img src={item.imageUrl || item.images[0]} alt={item.name} /> : <ShoppingBag size={26} />}<span className="store-product-tag">{group.title}</span><span className="store-product-stock">{itemStock > 0 ? `${itemStock} available` : "Out of stock"}</span></div>
+        <div className="store-product-copy">
+          <b>{item.name}</b>
+          <p className="store-product-description">{item.description || `Explore ${item.name} from ${store.tenant.name}. Select an available option to see current stock.`}</p>
+          <div className="store-product-price-row"><span>From <strong>{money(productPrice)}</strong></span><small>{itemStock > 0 ? `${itemStock} in stock` : "Out of stock"}</small></div>
+          {colorValues.length > 0 && <div className="store-product-swatches" aria-label={`Available colors: ${colorValues.join(", ")}`}>{colorValues.map((value) => <i className={`color-dot color-${value.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`} title={value} key={value} />)}</div>}
+          {sizeValues.length > 0 && <div className="store-product-sizes" aria-label={`Available sizes: ${sizeValues.join(", ")}`}>{sizeValues.map((value) => <small key={value}>{value}</small>)}</div>}
+          <span className="store-product-configure">{product?._id === item._id ? "Selected" : "Select product"} <ArrowRight size={13} /></span>
+        </div>
+      </button>;
+    });
   }
 
   function chooseAttribute(key, value) {
@@ -484,38 +569,33 @@ export default function StorefrontPage({ params }) {
       <section className="store-collection">
         <div className="store-section-head"><div><p className="eyebrow">THE COLLECTION</p><h2>Shop collection</h2></div><span>Showing {visibleProducts.length} of {store.products.length} items</span></div>
         <label className="store-catalog-search"><Search size={16} /><input type="search" aria-label="Search products" placeholder="Search products and options (e.g. surwaal, router, 4G)..." value={catalogSearch} onChange={(event) => setCatalogSearch(event.target.value)} /><kbd>Ctrl + K</kbd></label>
-        {store.sections?.length > 0 && <nav className="store-section-tabs" aria-label="Product sections">
-          <button className={!sectionId ? "selected" : ""} onClick={() => chooseSection("")}>All products</button>
-          {store.sections.map((section) => <button className={sectionId === section._id ? "selected" : ""} onClick={() => chooseSection(section._id)} key={section._id}>{section.name}</button>)}
+        {store.productTypes?.length > 0 && <nav className="store-section-tabs store-type-tabs" aria-label="Product types">
+          <button className={!typeId ? "selected" : ""} onClick={() => chooseType("")}>All products</button>
+          {store.productTypes.map((productType) => <button className={typeId === productType._id ? "selected" : ""} onClick={() => chooseType(productType._id)} key={productType._id}>{productType.name}</button>)}
+        </nav>}
+        {store.sections?.length > 0 && <nav className="store-section-tabs store-subsection-tabs" aria-label="Product sections">
+          <button className={!sectionId ? "selected" : ""} onClick={() => chooseSection("")}>All sections</button>
+          {store.sections
+            .filter((section) => !typeId || String(section.typeId?._id || section.typeId || "") === typeId)
+            .map((section) => <button className={sectionId === section._id ? "selected" : ""} onClick={() => chooseSection(section._id)} key={section._id}>{section.name}</button>)}
         </nav>}
         <div className="store-catalog-sections">
-          {catalogGroups.map((group) => <section className="store-catalog-section" key={group.id}>
-            <header className="store-catalog-section-heading">
+          {catalogGroups.map((group) => <section className="store-catalog-type" key={group.id}>
+            <header className="store-catalog-type-heading">
               {group.imageUrl && <img src={group.imageUrl} alt="" />}
-              <div>{group.description && <p className="eyebrow">{sectionId ? "SECTION" : "COLLECTION"}</p>}<h3>{group.title}</h3>{group.description && <p>{group.description}</p>}</div>
-              <span>{group.products.length} products</span>
+              <div><p className="eyebrow">PRODUCT TYPE</p><h3>{group.title}</h3>{group.description && <p>{group.description}</p>}</div>
+              <span>{group.sections.reduce((total, section) => total + section.products.length, 0)} products</span>
             </header>
-            {group.products.length ? <div className="store-product-grid">
-              {group.products.map((item) => {
-                const prices = item.variants.map((option) => option.price ?? item.price);
-                const basePrice = prices.length ? Math.min(item.price, ...prices) : item.price;
-                const productPrice = item.promotionalPrice == null ? basePrice : Math.min(basePrice, item.promotionalPrice);
-                const itemStock = item.variants.reduce((total, option) => total + option.stock, 0);
-                const colorValues = [...new Set(item.variants.map((option) => attributeValue(option, "color")).filter(Boolean))].slice(0, 5);
-                const sizeValues = [...new Set(item.variants.map((option) => attributeValue(option, "size") || attributeValue(option, "number")).filter(Boolean))].slice(0, 7);
-                return <button className={`store-product ${product?._id === item._id ? "selected" : ""}`} aria-pressed={product?._id === item._id} onClick={() => chooseProduct(item._id)} key={item._id}>
-                  <div className="store-product-image">{item.imageUrl || item.images?.[0] ? <img src={item.imageUrl || item.images[0]} alt={item.name} /> : <ShoppingBag size={26} />}<span className="store-product-tag">{item.sectionId ? group.title : item.category || group.title}</span><span className="store-product-stock">{itemStock > 0 ? `${itemStock} available` : "Out of stock"}</span></div>
-                  <div className="store-product-copy">
-                    <b>{item.name}</b>
-                    <p className="store-product-description">{item.description || `Explore ${item.name} from ${store.tenant.name}. Select an available option to see current stock.`}</p>
-                    <div className="store-product-price-row"><span>From <strong>{money(productPrice)}</strong></span><small>{itemStock > 0 ? `${itemStock} in stock` : "Out of stock"}</small></div>
-                    {colorValues.length > 0 && <div className="store-product-swatches" aria-label={`Available colors: ${colorValues.join(", ")}`}>{colorValues.map((value) => <i className={`color-dot color-${value.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`} title={value} key={value} />)}</div>}
-                    {sizeValues.length > 0 && <div className="store-product-sizes" aria-label={`Available sizes: ${sizeValues.join(", ")}`}>{sizeValues.map((value) => <small key={value}>{value}</small>)}</div>}
-                    <span className="store-product-configure">{product?._id === item._id ? "Selected" : "Select product"} <ArrowRight size={13} /></span>
-                  </div>
-                </button>;
-              })}
-            </div> : <p className="store-empty-section">{catalogSearch ? "No products in this section match your search." : "Products will appear here when they are published."}</p>}
+            {group.sections.map((section) => <section className="store-catalog-section" key={section._id || section.id}>
+              <header className="store-catalog-section-heading">
+                {section.imageUrl && <img src={section.imageUrl} alt="" />}
+                <div><p className="eyebrow">SECTION</p><h4>{section.name}</h4>{section.description && <p>{section.description}</p>}</div>
+                <span>{section.products.length} products</span>
+              </header>
+              {section.products.length ? <div className="store-product-grid">{renderProductCards({ ...section, title: section.name, products: section.products })}</div>
+                : <p className="store-empty-section">{catalogSearch ? "No products in this section match your search." : "Products will appear here when they are published."}</p>}
+            </section>)}
+            {!group.sections.length && <p className="store-empty-section">Sections and products will appear here when they are added.</p>}
           </section>)}
           {!catalogGroups.length && <div className="empty-state">{store.products.length ? "No products match your search." : "This store has no published products yet."}</div>}
         </div>
