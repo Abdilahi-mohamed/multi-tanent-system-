@@ -360,6 +360,47 @@ const tenantPaymentProviderSchema = new Schema(
 );
 tenantPaymentProviderSchema.index({ tenantId: 1, provider: 1 }, { unique: true });
 
+const companyRegistrationSchema = new Schema(
+  {
+    tenantId: { type: Schema.Types.ObjectId, ref: "Tenant", required: true, unique: true, index: true },
+    userId: { type: Schema.Types.ObjectId, ref: "User", required: true, unique: true, index: true },
+    fullName: { type: String, required: true, trim: true, maxlength: 120 },
+    email: { type: String, required: true, lowercase: true, trim: true, maxlength: 254 },
+    companyName: { type: String, required: true, trim: true, maxlength: 120 },
+    username: { type: String, required: true, lowercase: true, trim: true, maxlength: 32 },
+    paymentProvider: {
+      type: String,
+      enum: ["zaad", "edahab", "bank_transfer", "golis", "hormuud"],
+      required: true,
+      index: true
+    },
+    senderAccountCiphertext: { type: String, required: true, select: false },
+    senderAccountIv: { type: String, required: true, select: false },
+    senderAccountAuthTag: { type: String, required: true, select: false },
+    senderAccountKeyId: { type: String, required: true, select: false },
+    senderAccountVersion: { type: Number, default: 2, select: false },
+    senderAccountHint: { type: String, required: true, select: false },
+    registrationReference: { type: String, required: true, unique: true, index: true },
+    paymentStatus: {
+      type: String,
+      enum: ["pending", "processing", "paid", "failed"],
+      default: "pending",
+      index: true
+    },
+    approvalStatus: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending",
+      index: true
+    },
+    verifiedAt: { type: Date, default: null },
+    verifiedBy: { type: Schema.Types.ObjectId, ref: "User", default: null }
+  },
+  { timestamps: true }
+);
+companyRegistrationSchema.index({ email: 1 }, { unique: true });
+companyRegistrationSchema.index({ username: 1 }, { unique: true });
+
 export const Tenant = model("Tenant", tenantSchema);
 export const User = model("User", userSchema);
 export const CustomerAccount = model("CustomerAccount", customerAccountSchema);
@@ -372,3 +413,4 @@ export const SupportConversation = model("SupportConversation", supportConversat
 export const SupportMessage = model("SupportMessage", supportMessageSchema);
 export const AuditLog = model("AuditLog", auditSchema);
 export const TenantPaymentProvider = model("TenantPaymentProvider", tenantPaymentProviderSchema);
+export const CompanyRegistration = model("CompanyRegistration", companyRegistrationSchema);
