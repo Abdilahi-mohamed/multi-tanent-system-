@@ -368,6 +368,9 @@ const companyRegistrationSchema = new Schema(
     email: { type: String, required: true, lowercase: true, trim: true, maxlength: 254 },
     companyName: { type: String, required: true, trim: true, maxlength: 120 },
     username: { type: String, required: true, lowercase: true, trim: true, maxlength: 32 },
+    monthlyAmount: { type: Number, required: true, min: 25, max: 1_000_000_000 },
+    billingCurrency: { type: String, required: true, enum: ["USD"], default: "USD" },
+    billingFrequency: { type: String, required: true, enum: ["monthly"], default: "monthly" },
     paymentProvider: {
       type: String,
       enum: ["zaad", "edahab", "bank_transfer", "golis", "hormuud"],
