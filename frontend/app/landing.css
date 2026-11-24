@@ -1,13 +1,13 @@
 .landing-page {
-  --land-ink: #0F172A;
-  --land-blue: #2563EB;
-  --land-background: #F8FAFC;
-  --land-surface: #FFFFFF;
-  --land-border: #E2E8F0;
-  --land-muted: #64748B;
-  --land-success: #16A34A;
-  --land-warning: #F59E0B;
-  --land-danger: #DC2626;
+  --land-ink: #F5F2EA;
+  --land-blue: #D4AF37;
+  --land-background: #111111;
+  --land-surface: #181818;
+  --land-border: #2A2A2A;
+  --land-muted: #B8B8B8;
+  --land-success: #C1A041;
+  --land-warning: #D4AF37;
+  --land-danger: #F28476;
   overflow: hidden;
   background: var(--land-background);
   color: var(--land-ink);
@@ -278,4 +278,392 @@
 
 @media (prefers-reduced-motion: reduce) {
   .landing-page *, .landing-page *::before, .landing-page *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+
+/* Vendora system theme: black, gold, and white */
+.landing-page {
+  --land-ink: #F5F2EA;
+  --land-blue: #D4AF37;
+  --land-background: #111111;
+  --land-surface: #181818;
+  --land-border: #2A2A2A;
+  --land-muted: #99938A;
+  --land-success: #C1A041;
+  --land-warning: #D4AF37;
+  --land-danger: #F28476;
+  background: #111111;
+  color: #F5F2EA;
+}
+
+.landing-header {
+  border-bottom-color: #2A2A2A;
+  background: rgba(17,17,17,.94);
+}
+
+.landing-brand,
+.landing-brand strong,
+.landing-nav a,
+.landing-header-actions .login-link,
+.section-heading h2,
+.feature-heading h2,
+.process-intro h2,
+.storefront-copy h2,
+.pricing-copy h2,
+.faq-intro h2,
+.contact-content h2,
+.hero-copy h1,
+.solution-card h3,
+.feature-card h3,
+.advantage-card h3,
+.step-copy h3,
+.faq-item summary,
+.footer-link-column > b {
+  color: #F5F2EA;
+}
+
+.landing-brand small,
+.landing-nav a,
+.landing-header-actions .login-link,
+.hero-copy > p,
+.hero-assurance,
+.section-heading > p,
+.feature-heading > p,
+.process-intro > p,
+.storefront-copy > p,
+.pricing-copy > p,
+.faq-intro > p,
+.solution-card p,
+.feature-card p,
+.advantage-card p,
+.step-copy p,
+.faq-item > p,
+.footer-brand-column > p,
+.footer-link-column > a,
+.footer-bottom > .section-wrap {
+  color: #99938A;
+}
+
+.landing-nav a:hover,
+.landing-header-actions .login-link:hover,
+.eyebrow,
+.section-kicker,
+.text-arrow-link,
+.footer-login,
+.footer-link-column > a:hover,
+.footer-access-card > a,
+.storefront-copy h2 span,
+.hero-copy h1 span {
+  color: #D4AF37 !important;
+}
+
+.landing-button-primary,
+.nav-cta,
+.landing-button-light,
+.landing-button-dark,
+.store-product button,
+.store-welcome,
+.pricing-status,
+.feature-icon,
+.solution-icon,
+.step-marker > i,
+.advantage-card > span,
+.tenant-note,
+.tenant-note > span,
+.footer-access-card,
+.footer-access-card > span,
+.eyebrow > span {
+  border-color: #D4AF37;
+}
+
+.landing-button-primary,
+.nav-cta,
+.landing-button-dark,
+.landing-button-light {
+  background: #D4AF37;
+  color: #111111 !important;
+  box-shadow: 0 8px 18px rgba(212,175,55,.16);
+}
+
+.landing-button-primary:hover,
+.nav-cta:hover,
+.landing-button-dark:hover,
+.landing-button-light:hover {
+  background: #E6C65C;
+  box-shadow: 0 12px 24px rgba(212,175,55,.22);
+}
+
+.landing-button-quiet,
+.landing-button-outline {
+  border-color: #4D4D4D;
+  background: #181818;
+  color: #F5F2EA !important;
+}
+
+.hero-section,
+.solutions-section,
+.advantages-section,
+.faq-section {
+  background: #111111;
+}
+
+.hero-section {
+  background: linear-gradient(180deg, #111111 0%, #181818 100%);
+}
+
+.hero-grid-pattern,
+.contact-grid-pattern {
+  background-image: linear-gradient(rgba(212,175,55,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(212,175,55,.035) 1px, transparent 1px);
+}
+
+.features-section,
+.pricing-section,
+.storefront-section {
+  background: #181818;
+}
+
+.solution-card,
+.feature-card,
+.pricing-card,
+.tenant-note,
+.footer-access-card,
+.store-preview,
+.dashboard-window {
+  border-color: #2A2A2A;
+  background: #181818;
+  box-shadow: 0 18px 44px rgba(0,0,0,.28);
+}
+
+.solution-card:hover,
+.feature-card:hover {
+  border-color: #D4AF37;
+  box-shadow: 0 14px 32px rgba(0,0,0,.38);
+}
+
+.solution-icon,
+.feature-icon,
+.step-marker > i,
+.advantage-card > span,
+.tenant-note,
+.tenant-note > span,
+.pricing-icon,
+.footer-access-card > span,
+.eyebrow > span {
+  background: rgba(212,175,55,.11);
+  color: #D4AF37;
+}
+
+.solution-icon-2,
+.solution-icon-4,
+.solution-icon-5,
+.solution-icon-6 {
+  border-color: #3A3527;
+  background: rgba(212,175,55,.08);
+  color: #D4AF37;
+}
+
+.feature-rule {
+  background: linear-gradient(90deg, #D4AF37 0%, rgba(212,175,55,.3) 25%, transparent 85%);
+}
+
+.process-steps::before {
+  background: linear-gradient(#D4AF37 0%, #3A3527 78%, transparent 100%);
+}
+
+.storefront-copy li,
+.storefront-copy li > span,
+.pricing-card li,
+.tenant-note p,
+.tenant-note b,
+.storefront-disclaimer,
+.pricing-card > small,
+.pricing-card > p {
+  color: #B8B8B8;
+}
+
+.storefront-copy li > span,
+.pricing-card li svg,
+.feature-footnote svg,
+.tenant-note > svg,
+.access-note svg {
+  color: #D4AF37;
+}
+
+.pricing-status {
+  background: rgba(212,175,55,.11);
+  color: #E6C65C;
+}
+
+.pricing-status i,
+.caption-dot {
+  background: #D4AF37;
+  box-shadow: 0 0 0 4px rgba(212,175,55,.12);
+}
+
+.faq-list,
+.faq-item,
+.footer-bottom {
+  border-color: #2A2A2A;
+}
+
+.contact-section {
+  background: #0B0B0B;
+}
+
+.contact-content > p,
+.contact-content > small {
+  color: #99938A;
+}
+
+.landing-footer {
+  background: #111111;
+  border-top: 1px solid #2A2A2A;
+}
+
+.footer-brand-column,
+.footer-link-column,
+.footer-access-card {
+  color: #F5F2EA;
+}
+
+.landing-mobile-menu > nav,
+.landing-mobile-menu > summary {
+  border-color: #2A2A2A;
+  background: #181818;
+  color: #F5F2EA;
+}
+
+.landing-mobile-menu > nav a {
+  color: #B8B8B8;
+}
+
+.landing-mobile-menu > nav a:hover,
+.landing-mobile-menu > nav a:last-child {
+  background: rgba(212,175,55,.11);
+  color: #D4AF37;
+}
+
+.dashboard-window,
+.dashboard-rail,
+.dashboard-topbar,
+.dashboard-metric,
+.dashboard-panel,
+.store-preview,
+.store-browser-bar,
+.store-page,
+.store-welcome,
+.store-browser-bar small,
+.store-product button,
+.store-product,
+.store-category-row,
+.store-header {
+  background: #181818;
+  color: #F5F2EA;
+  border-color: #2A2A2A;
+}
+
+.dashboard-rail,
+.dashboard-topbar,
+.dashboard-panel,
+.dashboard-metric,
+.store-header,
+.store-category-row,
+.store-browser-bar {
+  background: #181818;
+}
+
+.dashboard-breadcrumb,
+.dashboard-breadcrumb b,
+.dashboard-heading p,
+.dashboard-metric small,
+.dashboard-metric > span,
+.dashboard-panel-heading small,
+.dashboard-panel-heading b,
+.period-select,
+.chart-labels,
+.chart-months,
+.dashboard-bottom-note,
+.activity-empty b,
+.activity-empty small,
+.store-identity b,
+.store-identity small,
+.store-nav-links,
+.store-category-row,
+.store-products-heading b,
+.store-products-heading small,
+.store-product > b,
+.product-price,
+.store-welcome > div:first-child > span,
+.store-browser-bar small {
+  color: #B8B8B8;
+}
+
+.dashboard-heading h2,
+.dashboard-metric strong,
+.store-welcome h3,
+.store-product > b,
+.store-products-heading b,
+.store-identity b,
+.product-price,
+.dashboard-panel-heading b {
+  color: #F5F2EA;
+}
+
+.dashboard-rail > .rail-active,
+.activity-empty > span,
+.store-welcome,
+.welcome-illustration,
+.product-art,
+.store-category-row .selected,
+.store-products-heading > span,
+.store-welcome small,
+.store-cart,
+.period-select,
+.preview-status {
+  color: #D4AF37;
+}
+
+.dashboard-rail > .rail-active,
+.activity-empty > span,
+.store-welcome,
+.store-browser-bar,
+.store-category-row,
+.store-header,
+.dashboard-topbar,
+.dashboard-panel,
+.dashboard-metric,
+.preview-status,
+.period-select,
+.store-product button,
+.store-browser-bar small {
+  border-color: #2A2A2A;
+}
+
+.store-welcome {
+  background: rgba(212,175,55,.08);
+}
+
+.welcome-illustration {
+  border-color: rgba(212,175,55,.24);
+  background: radial-gradient(circle, #262626 0%, #181818 72%);
+}
+
+.art-tote,
+.art-shirt,
+.art-pack,
+.product-art {
+  background: #222222;
+  color: #D4AF37;
+}
+
+.store-product button,
+.store-browser-bar small {
+  background: #181818;
+  color: #F5F2EA;
+}
+
+.store-cart i,
+.dashboard-top-actions i,
+.chart-labels span::before {
+  background: #D4AF37;
+  color: #111111;
 }
