@@ -7,8 +7,8 @@ import {
   getActivePaymentCredentialKeyId,
   paymentCredentialHint
 } from "../src/payment-credentials.js";
-import { TenantPaymentProvider } from "../src/models.js";
-import { paymentProviderSummary } from "../src/app.js";
+import { CompanyRegistration, TenantPaymentProvider } from "../src/models.js";
+import { paymentProviderSummary, publicCompanyRegistrationSchema } from "../src/app.js";
 
 const context = {
   tenantId: "tenant-123",
@@ -159,4 +159,23 @@ test("payment provider API summaries never return legacy short-secret hints", ()
   assert.equal(summary.webhookHint, "");
   assert.equal(JSON.stringify(summary).includes("1234"), false);
   assert.equal(summary.connectionStatus, "requires_attention");
+});
+
+test("company registration requires a monthly amount of at least $25", () => {
+  const registration = {
+    fullName: "A Store Owner",
+    email: "owner@example.com",
+    companyName: "Example Store",
+    username: "example.owner",
+    password: "SecurePassword123",
+    confirmPassword: "SecurePassword123",
+    paymentProvider: "zaad",
+    senderAccount: "+252634594307",
+    acceptedTerms: true
+  };
+
+  assert.equal(publicCompanyRegistrationSchema.safeParse({ ...registration, monthlyAmount: 24.99 }).success, false);
+  assert.equal(publicCompanyRegistrationSchema.safeParse({ ...registration, monthlyAmount: 25 }).success, true);
+  assert.equal(publicCompanyRegistrationSchema.safeParse({ ...registration, monthlyAmount: 25.5 }).success, true);
+  assert.equal(CompanyRegistration.schema.path("monthlyAmount").options.min, 25);
 });

@@ -13,21 +13,23 @@ import "../landing.css";
 import "./register-company.css";
 
 const providers = [
-  { id: "zaad", name: "ZAAD", mark: "Z", detail: "Mobile money" },
-  { id: "edahab", name: "eDahab", mark: "e", detail: "Mobile money" },
-  { id: "bank_transfer", name: "Bank Transfer", mark: "BT", detail: "Bank account" },
-  { id: "golis", name: "Golis", mark: "G", detail: "Mobile money" },
-  { id: "hormuud", name: "Hormuud", mark: "H", detail: "Mobile money" }
+  { id: "zaad", name: "ZAAD", organization: "Telesom", logo: "/payment-providers/zaad.png", detail: "Mobile money" },
+  { id: "edahab", name: "eDahab", organization: "Somtel", logo: "/payment-providers/edahab.png", detail: "Mobile money" },
+  { id: "bank_transfer", name: "Bank Transfer", organization: "Bank", detail: "Bank account" },
+  { id: "golis", name: "Golis", organization: "Golis", logo: "/payment-providers/golis.png", detail: "Mobile money" },
+  { id: "hormuud", name: "Hormuud", organization: "Hormuud", logo: "/payment-providers/hormuud.png", detail: "Mobile money" }
 ];
 
 const securePasswordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9]).{12,128}$/;
+const minimumMonthlyAmount = 25;
+const maximumMonthlyAmount = 1_000_000_000;
 
 export default function CompanyRegistrationPage() {
   const router = useRouter();
   const [form, setForm] = useState({
     fullName: "", email: "", companyName: "", username: "",
     password: "", confirmPassword: "", paymentProvider: "",
-    senderAccount: "", acceptedTerms: false
+    senderAccount: "", monthlyAmount: "25", acceptedTerms: false
   });
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
@@ -50,6 +52,10 @@ export default function CompanyRegistrationPage() {
     if (!securePasswordPattern.test(form.password)) next.password = "Use 12+ characters with uppercase, lowercase, and a number.";
     if (form.password !== form.confirmPassword) next.confirmPassword = "Passwords do not match.";
     if (!selectedProvider) next.paymentProvider = "Select a payment provider.";
+    const monthlyAmount = Number(form.monthlyAmount);
+    if (!Number.isFinite(monthlyAmount) || monthlyAmount < minimumMonthlyAmount || monthlyAmount > maximumMonthlyAmount) {
+      next.monthlyAmount = "Enter a monthly amount from $25 to $1,000,000,000 USD.";
+    }
     if (form.senderAccount.trim().length < 6) {
       next.senderAccount = form.paymentProvider === "bank_transfer"
         ? "Enter a valid bank account number."
@@ -72,7 +78,7 @@ export default function CompanyRegistrationPage() {
     try {
       const result = await api("/auth/company/register", {
         method: "POST",
-        body: JSON.stringify(form)
+        body: JSON.stringify({ ...form, monthlyAmount: Number(form.monthlyAmount) })
       });
       setNotice(`${result.message} Reference: ${result.registrationReference}`);
       window.setTimeout(() => router.push("/login"), 3200);
@@ -131,11 +137,13 @@ export default function CompanyRegistrationPage() {
               <div className="registration-grid payment-grid">
                 <label>Payment Provider<span className="select-input"><select value={form.paymentProvider} onChange={(event) => { update("paymentProvider", event.target.value); update("senderAccount", ""); }} aria-invalid={Boolean(errors.paymentProvider)}><option value="">Select a provider</option>{providers.map((provider) => <option value={provider.id} key={provider.id}>{provider.name}</option>)}</select><ChevronDown size={15} /></span></label>
                 <label>{form.paymentProvider === "bank_transfer" ? "Sender Account Number" : "Sender Phone Number"}<span className="account-input">{form.paymentProvider === "bank_transfer" ? <CreditCard size={16} /> : <Phone size={16} />}<input value={form.senderAccount} onChange={(event) => update("senderAccount", event.target.value)} inputMode={form.paymentProvider === "bank_transfer" ? "text" : "tel"} maxLength={64} placeholder={form.paymentProvider === "bank_transfer" ? "Enter bank account number" : "e.g. +252612345678"} aria-invalid={Boolean(errors.senderAccount)} /></span></label>
+                <label>Monthly Amount (USD)<span className="account-input monthly-amount-input"><span aria-hidden="true">$</span><input type="number" value={form.monthlyAmount} onChange={(event) => update("monthlyAmount", event.target.value)} min={minimumMonthlyAmount} max={maximumMonthlyAmount} step="0.01" inputMode="decimal" aria-invalid={Boolean(errors.monthlyAmount)} /></span><small className="field-hint">Billed monthly · minimum $25</small></label>
               </div>
 
-              {selectedProvider && <div className="provider-preview"><span className={`provider-mark provider-${selectedProvider.id}`}>{selectedProvider.mark}</span><div><b>{selectedProvider.name}</b><small>{selectedProvider.detail} · Secure payment review</small></div><ShieldCheck size={17} /></div>}
+              {selectedProvider && <div className="provider-preview"><span className={`provider-mark provider-${selectedProvider.id}`}>{selectedProvider.logo ? <img src={selectedProvider.logo} alt={`${selectedProvider.organization} logo`} /> : <CreditCard size={19} aria-hidden="true" />}</span><div><b>{selectedProvider.name}</b><small>{selectedProvider.organization} · {selectedProvider.detail} · Secure payment review</small></div><ShieldCheck size={17} /></div>}
               {errors.paymentProvider && <p className="field-error">{errors.paymentProvider}</p>}
               {errors.senderAccount && <p className="field-error">{errors.senderAccount}</p>}
+              {errors.monthlyAmount && <p className="field-error">{errors.monthlyAmount}</p>}
               <div className="payment-pending-note"><WalletCards size={16} /><p><b>Payment verification is pending</b><span>No payment success is assumed by this form. A platform administrator must verify payment and approval.</span></p></div>
             </fieldset>
 

@@ -143,7 +143,7 @@ const bootstrapAdminSchema = z.object({
   path: ["confirmPassword"],
   message: "Passwords do not match."
 });
-const publicCompanyRegistrationSchema = z.object({
+export const publicCompanyRegistrationSchema = z.object({
   fullName: z.string().trim().min(2).max(120),
   email: z.string().trim().email().max(254).transform((email) => email.toLowerCase()),
   companyName: z.string().trim().min(2).max(120),
@@ -155,6 +155,7 @@ const publicCompanyRegistrationSchema = z.object({
   confirmPassword: z.string().min(12).max(128),
   paymentProvider: z.enum(["zaad", "edahab", "bank_transfer", "golis", "hormuud"]),
   senderAccount: z.string().trim().min(6).max(64),
+  monthlyAmount: z.number().finite().min(25, "The monthly amount must be at least $25 USD.").max(1_000_000_000),
   acceptedTerms: z.literal(true)
 }).refine((input) => input.password === input.confirmPassword, {
   path: ["confirmPassword"],
@@ -1125,6 +1126,9 @@ api.post("/auth/company/register", registrationLimiter, async (req, res, next) =
       companyName: input.companyName,
       username: input.username,
       paymentProvider: input.paymentProvider,
+      monthlyAmount: input.monthlyAmount,
+      billingCurrency: "USD",
+      billingFrequency: "monthly",
       senderAccountCiphertext: accountEncryption.ciphertext,
       senderAccountIv: accountEncryption.iv,
       senderAccountAuthTag: accountEncryption.authTag,

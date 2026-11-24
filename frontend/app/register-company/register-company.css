@@ -292,6 +292,26 @@
   padding-left: 35px;
 }
 
+.monthly-amount-input > span {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 12px;
+  color: #D4AF37;
+  font-size: 11px;
+  transform: translateY(-50%);
+}
+
+.monthly-amount-input input {
+  padding-left: 28px;
+}
+
+.field-hint {
+  color: #99938A;
+  font-size: 8px;
+  font-weight: 500;
+}
+
 .payment-fieldset {
   margin-top: 22px;
   padding-top: 19px;
@@ -313,7 +333,7 @@
 
 .provider-preview {
   display: grid;
-  grid-template-columns: 42px 1fr 18px;
+  grid-template-columns: 56px 1fr 18px;
   align-items: center;
   gap: 10px;
   margin-top: 11px;
@@ -341,20 +361,27 @@
 
 .provider-mark {
   display: grid;
-  width: 42px;
-  height: 42px;
+  width: 56px;
+  height: 40px;
   place-items: center;
-  border: 1px solid rgba(212,175,55,.28);
+  overflow: hidden;
+  border: 1px solid #E5E5E5;
   border-radius: 9px;
-  background: rgba(212,175,55,.11);
-  color: #D4AF37;
-  font-family: "Sora", sans-serif;
-  font-size: 13px;
-  font-weight: 800;
+  background: #FFFFFF;
+}
+
+.provider-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 3px;
 }
 
 .provider-bank_transfer {
-  font-size: 9px;
+  border-color: rgba(212,175,55,.28);
+  background: rgba(212,175,55,.11);
+  color: #D4AF37;
 }
 
 .payment-pending-note {

@@ -91,31 +91,6 @@ const faqs = [
   { question: "How do I contact support?", answer: "Sign in to your business account and open its support area to start or follow a conversation with the platform team." }
 ];
 
-const socialProfiles = [
-  {
-    label: "WhatsApp",
-    icon: SiWhatsapp,
-    href: process.env.NEXT_PUBLIC_WHATSAPP_URL || ""
-  },
-  {
-    label: "Gmail",
-    icon: SiGmail,
-    href: process.env.NEXT_PUBLIC_SUPPORT_EMAIL
-      ? `mailto:${process.env.NEXT_PUBLIC_SUPPORT_EMAIL}`
-      : ""
-  },
-  {
-    label: "LinkedIn",
-    icon: FaLinkedin,
-    href: process.env.NEXT_PUBLIC_LINKEDIN_URL || ""
-  },
-  {
-    label: "GitHub",
-    icon: SiGithub,
-    href: "https://github.com/Abdilahi-mohamed"
-  }
-].filter((profile) => profile.href);
-
 function Brand({ footer = false }) {
   return (
     <Link className={`landing-brand${footer ? " landing-brand-footer" : ""}`} href="/" aria-label="Vendora home">
