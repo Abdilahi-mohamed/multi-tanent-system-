@@ -50,7 +50,7 @@ export default function LoginPage() {
       <h1>Welcome back</h1>
       <p>Sign in to your secure workspace.</p>
       <form onSubmit={submit}>
-        <label>Username or email<input type="text" autoComplete="username" autoCapitalize="none" required value={username} onChange={(event) => setUsername(event.target.value)} placeholder="Enter your username or email" /></label>
+        <label>Username<input type="text" autoComplete="username" autoCapitalize="none" required value={username} onChange={(event) => setUsername(event.target.value)} placeholder="Enter your username" /></label>
         <label>Password<input type="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter your password" /></label>
         <label className="remember-me-option"><input type="checkbox" checked={rememberMe} onChange={(event) => setRememberMe(event.target.checked)} /> Remember me</label>
         {error && <div className="inline-error">{error}</div>}

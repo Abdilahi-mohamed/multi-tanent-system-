@@ -12,7 +12,7 @@ import mongoose from "mongoose";
 import { authenticate, createToken, requireRole } from "./auth.js";
 import {
   AuditLog, Conversation, CustomerAccount, Order, Product, ProductSection, ProductType, SupportConversation,
-  SupportMessage, Tenant, TenantPaymentProvider, User
+  SupportMessage, Tenant, TenantPaymentProvider, User, CompanyRegistration
 } from "./models.js";
 import { calculateSubtotal } from "./commerce.js";
 import { tenantIdFromSession, withSupportConversationScope, withTenantScope } from "./tenant-scope.js";
@@ -119,6 +119,13 @@ const storeSupportRequestLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: "Too many support requests were sent. Try again later." }
 });
+const contactMessageLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many contact messages were sent. Try again later." }
+});
 const loginSchema = z.object({
   identifier: z.string().trim().min(3).max(254).optional(),
   username: z.string().trim().min(3).max(32).regex(/^[a-zA-Z0-9._-]+$/).optional(),
@@ -135,6 +142,31 @@ const bootstrapAdminSchema = z.object({
 }).refine((input) => input.password === input.confirmPassword, {
   path: ["confirmPassword"],
   message: "Passwords do not match."
+});
+const publicCompanyRegistrationSchema = z.object({
+  fullName: z.string().trim().min(2).max(120),
+  email: z.string().trim().email().max(254).transform((email) => email.toLowerCase()),
+  companyName: z.string().trim().min(2).max(120),
+  username: z.string().trim().min(3).max(32).regex(/^[a-zA-Z0-9._-]+$/).transform((username) => username.toLowerCase()),
+  password: z.string().min(12).max(128)
+    .regex(/[a-z]/, "Password must include a lowercase letter.")
+    .regex(/[A-Z]/, "Password must include an uppercase letter.")
+    .regex(/[0-9]/, "Password must include a number."),
+  confirmPassword: z.string().min(12).max(128),
+  paymentProvider: z.enum(["zaad", "edahab", "bank_transfer", "golis", "hormuud"]),
+  senderAccount: z.string().trim().min(6).max(64),
+  acceptedTerms: z.literal(true)
+}).refine((input) => input.password === input.confirmPassword, {
+  path: ["confirmPassword"],
+  message: "Passwords do not match."
+}).superRefine((input, ctx) => {
+  if (input.paymentProvider === "bank_transfer") {
+    if (!/^[A-Za-z0-9 -]{6,64}$/.test(input.senderAccount)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["senderAccount"], message: "Enter a valid bank account number." });
+    }
+  } else if (!/^\+?[0-9]{7,15}$/.test(input.senderAccount)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["senderAccount"], message: "Enter a valid payment phone number." });
+  }
 });
 const userPasswordSchema = z.object({
   password: z.string().min(12).max(128),
@@ -225,6 +257,12 @@ const storeSupportRequestSchema = z.object({
   name: z.string().trim().min(2).max(120),
   email: z.string().trim().email().max(254).transform((email) => email.toLowerCase()),
   body: z.string().trim().min(1).max(2000)
+});
+const contactMessageSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  email: z.string().trim().email().max(254).transform((email) => email.toLowerCase()),
+  subject: z.string().trim().min(2).max(160),
+  message: z.string().trim().min(10).max(3000)
 });
 const supportStatusSchema = z.object({
   status: z.enum(["open", "in_progress", "resolved"])
@@ -997,6 +1035,122 @@ api.get("/health", (_req, res) => {
 
 api.get("/auth/bootstrap-status", (_req, res) => {
   res.json({ open: true });
+});
+
+api.post("/contact/message", contactMessageLimiter, async (req, res, next) => {
+  try {
+    const input = parseOrRespond(contactMessageSchema, req.body, res);
+    if (!input) return;
+
+    const mailer = customerMailer();
+    if (!mailer) {
+      return res.status(503).json({
+        error: "Email delivery is not configured yet.",
+        deliveryStatus: "not_configured"
+      });
+    }
+
+    await mailer.sendMail({
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      to: "abdilahimohamed459@gmail.com",
+      replyTo: input.email,
+      subject: `[Vendora Contact] ${input.subject}`,
+      text: `Name: ${input.name}\nEmail: ${input.email}\n\n${input.message}`
+    });
+
+    res.status(200).json({ message: "Your message has been sent.", deliveryStatus: "sent" });
+  } catch (error) {
+    logError("Contact message delivery failed.", error);
+    return res.status(502).json({
+      error: "Your message could not be delivered. Please try again or use email or WhatsApp.",
+      deliveryStatus: "failed"
+    });
+  }
+});
+
+api.post("/auth/company/register", registrationLimiter, async (req, res, next) => {
+  let tenant = null;
+  let user = null;
+  try {
+    const input = parseOrRespond(publicCompanyRegistrationSchema, req.body, res);
+    if (!input) return;
+
+    if (await User.exists({ $or: [{ username: input.username }, { email: input.email }] })) {
+      return res.status(409).json({ error: "That username or email address is already in use." });
+    }
+
+    const slugBase = input.companyName
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 50);
+    let slug = slugBase || input.username;
+    for (let suffix = 1; await Tenant.exists({ $or: [{ slug }, { previousSlugs: slug }] }); suffix++) {
+      slug = `${slugBase}-${suffix}`;
+    }
+
+    tenant = await Tenant.create({
+      name: input.companyName,
+      slug,
+      ownerName: input.fullName,
+      email: input.email,
+      status: "pending",
+      plan: "Not configured"
+    });
+
+    user = await User.create({
+      name: input.fullName,
+      username: input.username,
+      email: input.email,
+      passwordHash: await bcrypt.hash(input.password, 12),
+      role: "business_owner",
+      tenantId: tenant._id,
+      active: false
+    });
+
+    const registrationReference = `VND-${randomBytes(9).toString("hex").toUpperCase()}`;
+    const accountEncryption = encryptPaymentCredential(input.senderAccount, {
+      tenantId: tenant._id,
+      provider: input.paymentProvider,
+      field: "sender_account"
+    });
+
+    await CompanyRegistration.create({
+      tenantId: tenant._id,
+      userId: user._id,
+      fullName: input.fullName,
+      email: input.email,
+      companyName: input.companyName,
+      username: input.username,
+      paymentProvider: input.paymentProvider,
+      senderAccountCiphertext: accountEncryption.ciphertext,
+      senderAccountIv: accountEncryption.iv,
+      senderAccountAuthTag: accountEncryption.authTag,
+      senderAccountKeyId: accountEncryption.keyId,
+      senderAccountVersion: accountEncryption.version,
+      senderAccountHint: paymentCredentialHint(input.senderAccount),
+      registrationReference,
+      paymentStatus: "pending",
+      approvalStatus: "pending"
+    });
+
+    return res.status(201).json({
+      message: "Company registration submitted. Payment verification and account approval are pending.",
+      registrationReference,
+      status: "pending",
+      paymentStatus: "pending"
+    });
+  } catch (error) {
+    if (user?._id) await User.deleteOne({ _id: user._id }).catch(() => {});
+    if (tenant?._id) await Tenant.deleteOne({ _id: tenant._id }).catch(() => {});
+    if (error.code === 11000) return res.status(409).json({ error: "That username, email, company address, or registration reference is already in use." });
+    if (isPaymentCredentialConfigurationError(error)) {
+      return res.status(503).json({ error: "Secure payment details could not be stored because payment credential configuration is unavailable." });
+    }
+    return next(error);
+  }
 });
 
 api.post("/auth/register", registrationLimiter, async (req, res, next) => {
@@ -1807,13 +1961,75 @@ api.patch("/admin/users/:id/password", authenticate, requireRole("super_admin"),
   }
 });
 
+api.patch("/admin/registrations/:id/payment", authenticate, requireRole("super_admin"), async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid registration ID." });
+    const input = parseOrRespond(z.object({
+      paymentStatus: z.enum(["pending", "processing", "paid", "failed"]),
+      transactionReference: z.string().trim().min(3).max(128).optional()
+    }), req.body, res);
+    if (!input) return;
+
+    const registration = await CompanyRegistration.findById(req.params.id);
+    if (!registration) return res.status(404).json({ error: "Company registration not found." });
+    registration.paymentStatus = input.paymentStatus;
+    if (input.paymentStatus === "paid") {
+      registration.verifiedAt = new Date();
+      registration.verifiedBy = req.user._id;
+    }
+    await registration.save();
+    await writeAudit({
+      actor: req.user,
+      action: `company_registration.payment_${input.paymentStatus}`,
+      targetType: "company_registration",
+      targetId: registration._id,
+      tenantId: registration.tenantId,
+      details: {
+        paymentStatus: input.paymentStatus,
+        transactionReference: input.transactionReference || null
+      }
+    });
+    res.json({
+      registrationReference: registration.registrationReference,
+      paymentStatus: registration.paymentStatus,
+      approvalStatus: registration.approvalStatus
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 api.patch("/admin/businesses/:id/status", authenticate, requireRole("super_admin"), async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid business ID." });
     const input = parseOrRespond(z.object({ status: z.enum(["active", "suspended", "rejected"]) }), req.body, res);
     if (!input) return;
+    if (input.status === "active") {
+      const registration = await CompanyRegistration.findOne({ tenantId: req.params.id });
+      if (registration && registration.paymentStatus !== "paid") {
+        return res.status(409).json({
+          error: "Payment verification is pending. Verify the registration payment before activating this company.",
+          paymentStatus: registration.paymentStatus
+        });
+      }
+    }
     const tenant = await Tenant.findByIdAndUpdate(req.params.id, { status: input.status }, { new: true, runValidators: true });
     if (!tenant) return res.status(404).json({ error: "Business not found." });
+    await User.updateMany(
+      { tenantId: tenant._id, role: "business_owner" },
+      { $set: { active: input.status === "active" } }
+    );
+    if (input.status === "active") {
+      await CompanyRegistration.updateOne(
+        { tenantId: tenant._id },
+        { $set: { approvalStatus: "approved", verifiedAt: new Date(), verifiedBy: req.user._id } }
+      );
+    } else if (input.status === "rejected") {
+      await CompanyRegistration.updateOne(
+        { tenantId: tenant._id },
+        { $set: { approvalStatus: "rejected" } }
+      );
+    }
     await writeAudit({
       actor: req.user,
       action: `business.${input.status}`,

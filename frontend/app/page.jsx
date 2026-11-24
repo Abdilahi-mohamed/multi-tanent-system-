@@ -34,6 +34,9 @@ import {
   Users,
   WalletCards
 } from "lucide-react";
+import { SiGmail, SiGithub, SiWhatsapp } from "react-icons/si";
+import { FaLinkedin } from "react-icons/fa";
+import ContactSection from "../components/ContactSection";
 import "./landing.css";
 
 export const metadata = {
@@ -87,6 +90,31 @@ const faqs = [
   { question: "Can I access my business dashboard from mobile devices?", answer: "The Vendora web app is responsive and can be accessed from modern mobile and desktop browsers." },
   { question: "How do I contact support?", answer: "Sign in to your business account and open its support area to start or follow a conversation with the platform team." }
 ];
+
+const socialProfiles = [
+  {
+    label: "WhatsApp",
+    icon: SiWhatsapp,
+    href: process.env.NEXT_PUBLIC_WHATSAPP_URL || ""
+  },
+  {
+    label: "Gmail",
+    icon: SiGmail,
+    href: process.env.NEXT_PUBLIC_SUPPORT_EMAIL
+      ? `mailto:${process.env.NEXT_PUBLIC_SUPPORT_EMAIL}`
+      : ""
+  },
+  {
+    label: "LinkedIn",
+    icon: FaLinkedin,
+    href: process.env.NEXT_PUBLIC_LINKEDIN_URL || ""
+  },
+  {
+    label: "GitHub",
+    icon: SiGithub,
+    href: "https://github.com/Abdilahi-mohamed"
+  }
+].filter((profile) => profile.href);
 
 function Brand({ footer = false }) {
   return (
@@ -194,18 +222,18 @@ export default function Home() {
         <div className="landing-header-inner">
           <Brand />
           <nav className="landing-nav" aria-label="Main navigation">
-            <a href="#home">Home</a><a href="#features">Features</a><a href="#solutions">Solutions</a>
-            <a href="#how-it-works">How it works</a><a href="#pricing">Pricing</a><a href="#contact">Contact</a>
+            <a href="#home">Home</a>            <a href="#features">Features</a><a href="#solutions">Solutions</a>
+            <a href="#pricing">Pricing</a><a href="#contact">Contact</a>
           </nav>
           <div className="landing-header-actions">
             <Link className="login-link" href="/login">Log in</Link>
-            <Link className="landing-button landing-button-primary nav-cta" href="/login">Get started <ArrowRight size={15} /></Link>
+            <Link className="landing-button landing-button-primary nav-cta" href="/register-company">Create Account <ArrowRight size={15} /></Link>
           </div>
           <details className="landing-mobile-menu">
             <summary aria-label="Open navigation menu"><Menu size={21} /></summary>
             <nav aria-label="Mobile navigation">
-              <a href="#home">Home</a><a href="#features">Features</a><a href="#solutions">Solutions</a>
-              <a href="#how-it-works">How it works</a><a href="#pricing">Pricing</a><a href="#contact">Contact</a>
+              <a href="#home">Home</a>              <a href="#features">Features</a><a href="#solutions">Solutions</a>
+              <a href="#pricing">Pricing</a><a href="#contact">Contact</a>
               <Link href="/login">Log in to your workspace <ArrowRight size={15} /></Link>
             </nav>
           </details>
@@ -219,7 +247,7 @@ export default function Home() {
           <h1>Everything Your Business Needs to <span>Sell, Manage, and Grow.</span></h1>
           <p>Vendora is an all-in-one business management and e-commerce platform that helps you manage your products, inventory, orders, customers, and online store from one powerful dashboard.</p>
           <div className="hero-actions">
-            <Link className="landing-button landing-button-primary" href="/login">Start your business <ArrowRight size={16} /></Link>
+            <Link className="landing-button landing-button-primary" href="/register-company">Create Account <ArrowRight size={16} /></Link>
             <a className="landing-button landing-button-quiet" href="#features">Explore features <ArrowDownRight size={16} /></a>
           </div>
           <div className="hero-assurance"><span><Check size={13} /></span> Independent workspace for every business <i /> <span><Check size={13} /></span> Your store, ready to share</div>
@@ -270,24 +298,6 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="process-section section-wrap" id="how-it-works">
-        <div className="process-intro">
-          <span className="section-kicker">A CLEAR PATH FROM DAY ONE</span>
-          <h2>From setup to<br />your next sale.</h2>
-          <p>Get your business workspace ready, then keep everything moving from one place.</p>
-          <Link className="text-arrow-link" href="/login">Already have an account? Log in <ArrowRight size={15} /></Link>
-        </div>
-        <div className="process-steps">
-          {steps.map(({ icon: Icon, title, detail }, index) => (
-            <article className="process-step" key={title}>
-              <div className="step-marker"><span>{String(index + 1).padStart(2, "0")}</span><i><Icon size={19} /></i></div>
-              <div className="step-copy"><h3>{title}</h3><p>{detail}</p></div>
-            </article>
-          ))}
-          <p className="access-note"><LockKeyhole size={14} /> Business accounts are provisioned by your platform administrator.</p>
-        </div>
-      </section>
-
       <section className="storefront-section">
         <div className="section-wrap storefront-layout">
           <div className="storefront-copy">
@@ -304,20 +314,6 @@ export default function Home() {
           </div>
           <div className="storefront-visual"><span className="store-visual-spark store-visual-spark-one" /><span className="store-visual-spark store-visual-spark-two" /><StorefrontPreview /></div>
         </div>
-      </section>
-
-      <section className="advantages-section section-wrap">
-        <div className="section-heading centered-heading">
-          <span className="section-kicker">A BETTER WAY TO RUN YOUR BUSINESS</span>
-          <h2>Designed around<br />how business works.</h2>
-          <p>One purpose-built platform for independent businesses and the people behind them.</p>
-        </div>
-        <div className="advantages-grid">
-          {advantages.map(({ icon: Icon, title, detail }) => (
-            <article className="advantage-card" key={title}><span><Icon size={19} /></span><h3>{title}</h3><p>{detail}</p></article>
-          ))}
-        </div>
-        <div className="tenant-note"><span><LockKeyhole size={18} /></span><div><b>Your business stays yours.</b><p>Each business has its own independent workspace. Vendora's separate Super Admin dashboard manages business accounts, platform users, and system operations.</p></div><ShieldCheck size={21} /></div>
       </section>
 
       <section className="pricing-section" id="pricing">
@@ -341,26 +337,24 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="contact-section" id="contact">
-        <div className="contact-grid-pattern" aria-hidden="true" />
-        <div className="contact-content">
-          <span className="section-kicker">YOUR NEXT CHAPTER STARTS HERE</span>
-          <h2>Ready to Take Your Business to the Next Level?</h2>
-          <p>Join Vendora and manage your entire business through one powerful platform.</p>
-          <div className="contact-actions">
-            <Link className="landing-button landing-button-light" href="/login">Create your business account <ArrowRight size={16} /></Link>
-            <Link className="landing-button landing-button-outline" href="/login">Contact us <MessageCircle size={15} /></Link>
-          </div>
-          <small>Business accounts and support are available through your platform administrator.</small>
-        </div>
-      </section>
+      <ContactSection />
 
       <footer className="landing-footer">
         <div className="footer-main section-wrap">
           <div className="footer-brand-column"><Brand footer /><p>One connected platform to manage your business, grow your online store, and keep everything moving.</p><Link className="footer-login" href="/login"><LockKeyhole size={14} /> Business sign in <ArrowUpRight size={13} /></Link></div>
-          <div className="footer-link-column"><b>Explore</b><a href="#features">Features</a><a href="#solutions">Solutions</a><a href="#how-it-works">How it works</a><a href="#pricing">Business access</a></div>
+          <div className="footer-link-column"><b>Explore</b><a href="#features">Features</a><a href="#solutions">Solutions</a><a href="#pricing">Business access</a></div>
           <div className="footer-link-column"><b>Platform</b><a href="#features">Product management</a><a href="#features">Inventory management</a><a href="#features">Online storefront</a><a href="#features">Sales analytics</a></div>
-          <div className="footer-access-card"><span><CircleHelp size={17} /></span><b>Need a hand?</b><p>Sign in to contact the Vendora platform support team.</p><Link href="/login">Visit your workspace <ArrowRight size={13} /></Link></div>
+          <div className="footer-access-card">
+            <span><CircleHelp size={17} /></span>
+            <b>Contact Abdilahi</b>
+            <p>Project questions, collaboration, or platform support.</p>
+            <div className="footer-contact-links">
+              <a href="mailto:abdilahimohamed459@gmail.com" aria-label="Email Abdilahi"><SiGmail /></a>
+              <a href="https://wa.me/252634594307?s=p" target="_blank" rel="noreferrer" aria-label="WhatsApp Abdilahi"><SiWhatsapp /></a>
+              <a href="https://www.linkedin.com/in/abdilahi-mohamed-564317393" target="_blank" rel="noreferrer" aria-label="Abdilahi on LinkedIn"><FaLinkedin /></a>
+              <a href="https://github.com/Abdilahi-mohamed" target="_blank" rel="noreferrer" aria-label="Abdilahi on GitHub"><SiGithub /></a>
+            </div>
+          </div>
         </div>
         <div className="footer-bottom"><div className="section-wrap"><span>© {new Date().getFullYear()} Vendora. All rights reserved.</span><span className="footer-legal"><span>Privacy policy</span><span>Terms of service</span></span><span className="footer-platform">Built for independent business <span>•</span> Powered by Vendora</span></div></div>
       </footer>

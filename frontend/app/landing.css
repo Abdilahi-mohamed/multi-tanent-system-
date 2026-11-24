@@ -667,3 +667,350 @@
   background: #D4AF37;
   color: #111111;
 }
+
+.social-profiles {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.social-profiles a {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid #343434;
+  border-radius: 10px;
+  background: #181818;
+  color: #D4AF37;
+  transition: border-color .18s ease, background .18s ease, color .18s ease, transform .18s ease;
+}
+
+.social-profiles a:hover {
+  border-color: #D4AF37;
+  background: #D4AF37;
+  color: #111111;
+  transform: translateY(-2px);
+}
+
+.social-profiles svg {
+  width: 17px;
+  height: 17px;
+}
+
+.personal-contact-section {
+  border-top: 1px solid #2A2A2A;
+  border-bottom: 1px solid #2A2A2A;
+  background: #181818;
+  padding: 78px 0;
+}
+
+.personal-contact-layout {
+  display: grid;
+  grid-template-columns: .9fr 1.1fr;
+  align-items: center;
+  gap: 70px;
+}
+
+.personal-contact-copy h2 {
+  margin: 12px 0 12px;
+  color: #F5F2EA;
+  font-family: "Sora", "Inter", sans-serif;
+  font-size: clamp(38px, 4vw, 52px);
+  line-height: 1.1;
+  letter-spacing: -.06em;
+}
+
+.personal-contact-copy h2 span {
+  color: #D4AF37;
+}
+
+.personal-contact-copy > p {
+  max-width: 430px;
+  margin: 0;
+  color: #99938A;
+  font-size: 12px;
+  line-height: 1.85;
+}
+
+.personal-contact-list {
+  display: grid;
+  gap: 9px;
+  margin-top: 24px;
+}
+
+.personal-contact-list a {
+  display: flex;
+  max-width: 430px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #2A2A2A;
+  border-radius: 10px;
+  background: #111111;
+  transition: border-color .18s ease, transform .18s ease;
+}
+
+.personal-contact-list a:hover {
+  border-color: #D4AF37;
+  transform: translateX(3px);
+}
+
+.personal-contact-list a > span {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 9px;
+  background: rgba(212,175,55,.11);
+  color: #D4AF37;
+}
+
+.personal-contact-list a > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.personal-contact-list small {
+  color: #99938A;
+  font-size: 8px;
+}
+
+.personal-contact-list b {
+  overflow: hidden;
+  color: #F5F2EA;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.personal-social-profiles,
+.footer-contact-links {
+  display: flex;
+  gap: 9px;
+  margin-top: 16px;
+}
+
+.personal-social-profiles a,
+.footer-contact-links a {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid #343434;
+  border-radius: 9px;
+  background: #111111;
+  color: #D4AF37;
+  transition: background .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
+}
+
+.personal-social-profiles a:hover,
+.footer-contact-links a:hover {
+  border-color: #D4AF37;
+  background: #D4AF37;
+  color: #111111;
+  transform: translateY(-2px);
+}
+
+.personal-social-profiles svg,
+.footer-contact-links svg {
+  width: 17px;
+  height: 17px;
+}
+
+.personal-contact-form {
+  min-width: 0;
+  padding: 24px;
+  border: 1px solid #343434;
+  border-radius: 14px;
+  background: #111111;
+}
+
+.personal-contact-form-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 17px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #2A2A2A;
+}
+
+.personal-contact-form-heading > span {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 9px;
+  background: rgba(212,175,55,.11);
+  color: #D4AF37;
+}
+
+.personal-contact-form-heading > div {
+  display: grid;
+  gap: 2px;
+}
+
+.personal-contact-form-heading small {
+  color: #D4AF37;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+
+.personal-contact-form-heading h3 {
+  margin: 0;
+  color: #F5F2EA;
+  font-family: "Sora", "Inter", sans-serif;
+  font-size: 15px;
+}
+
+.personal-contact-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.personal-contact-form label {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  color: #B8B8B8;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.personal-contact-grid label {
+  margin-top: 0;
+}
+
+.personal-contact-form input,
+.personal-contact-form textarea {
+  width: 100%;
+  border: 1px solid #343434;
+  border-radius: 8px;
+  outline: 0;
+  background: #181818;
+  color: #F5F2EA;
+  font-size: 11px;
+}
+
+.personal-contact-form input {
+  height: 42px;
+  padding: 0 11px;
+}
+
+.personal-contact-form textarea {
+  resize: vertical;
+  min-height: 115px;
+  padding: 10px 11px;
+}
+
+.personal-contact-form input::placeholder,
+.personal-contact-form textarea::placeholder {
+  color: #777777;
+}
+
+.personal-contact-form input:focus,
+.personal-contact-form textarea:focus {
+  border-color: #D4AF37;
+  box-shadow: 0 0 0 3px rgba(212,175,55,.09);
+}
+
+.personal-contact-form input[aria-invalid="true"],
+.personal-contact-form textarea[aria-invalid="true"] {
+  border-color: #F28476;
+}
+
+.personal-field-error {
+  margin: 5px 0 0;
+  color: #F28476;
+  font-size: 8px;
+}
+
+.personal-contact-notice {
+  margin-top: 10px;
+  padding: 9px 10px;
+  border: 1px solid rgba(212,175,55,.25);
+  border-radius: 8px;
+  background: rgba(212,175,55,.07);
+  color: #E6C65C;
+  font-size: 9px;
+}
+
+.personal-contact-form > button {
+  display: flex;
+  width: 100%;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+  border: 0;
+  border-radius: 9px;
+  background: #D4AF37;
+  color: #111111;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.personal-contact-form > button:hover:not(:disabled) {
+  background: #E6C65C;
+}
+
+.personal-contact-form > button:disabled {
+  opacity: .65;
+  cursor: wait;
+}
+
+.footer-contact-links {
+  margin-top: 11px;
+}
+
+.footer-contact-links a {
+  width: 32px;
+  height: 32px;
+  border-color: #343434;
+  background: #181818;
+}
+
+.footer-contact-links svg {
+  width: 15px;
+  height: 15px;
+}
+
+@media (max-width: 860px) {
+  .personal-contact-layout {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+}
+
+@media (max-width: 600px) {
+  .personal-contact-section {
+    padding: 58px 0;
+  }
+
+  .personal-contact-layout {
+    width: calc(100% - 40px);
+  }
+
+  .personal-contact-copy h2 {
+    font-size: 38px;
+  }
+
+  .personal-contact-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .personal-contact-form {
+    padding: 15px;
+  }
+
+  .personal-contact-list b {
+    font-size: 9px;
+  }
+}
