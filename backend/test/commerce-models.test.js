@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import mongoose from "mongoose";
-import { Conversation, CustomerAccount, Order, Product, ProductSection, Tenant } from "../src/models.js";
+import { Conversation, CustomerAccount, Order, Product, ProductSection, ProductType, Tenant } from "../src/models.js";
 
 test("customer accounts are unique by email and keep password hashes out of normal queries", () => {
   const customer = new CustomerAccount({
@@ -26,9 +26,10 @@ test("customer accounts are unique by email and keep password hashes out of norm
   assert.ok(customer.validateSync().errors.accountStatus);
 });
 
-test("product sections and their dynamic variants validate with tenant associations", () => {
+test("product types, sections, and variants validate with tenant associations", () => {
   const tenantId = new mongoose.Types.ObjectId();
-  const section = new ProductSection({ tenantId, name: "Shirts", displayOrder: 1 });
+  const type = new ProductType({ tenantId, name: "Clothing", displayOrder: 1 });
+  const section = new ProductSection({ tenantId, typeId: type._id, name: "Shirts", displayOrder: 1 });
   const product = new Product({
     tenantId,
     sectionId: section._id,
@@ -45,7 +46,10 @@ test("product sections and their dynamic variants validate with tenant associati
     }]
   });
 
+  assert.equal(type.validateSync(), undefined);
   assert.equal(section.validateSync(), undefined);
+  assert.equal(String(section.typeId), String(type._id));
+  assert.equal(ProductType.schema.options.timestamps, true);
   assert.equal(product.validateSync(), undefined);
   assert.equal(product.variants[0].price, 27);
   assert.equal(product.variants[0].stock, 3);
@@ -53,6 +57,9 @@ test("product sections and their dynamic variants validate with tenant associati
 
   product.variants[0].stock = -1;
   assert.ok(product.validateSync().errors["variants.0.stock"]);
+  assert.ok(ProductSection.schema.indexes().some(([fields, options]) =>
+    fields.tenantId === 1 && fields.typeId === 1 && fields.name === 1 && options.unique
+  ));
 });
 
 test("storefront login branding is stored independently for each tenant", () => {

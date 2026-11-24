@@ -1,18 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Archive, Plus, Search, X } from "lucide-react";
+import { Archive, ImagePlus, Plus, Search, X } from "lucide-react";
 import { api, money } from "../../../lib/api";
+import { prepareImage } from "../../../lib/prepare-image";
 import { LoadingState, PageHeader, Panel, StatusPill } from "../../../components/AppShell";
 
 const blankVariant = () => ({ _id: "", sku: "", size: "", color: "", attributes: [], stock: "0", price: "", imageUrl: "" });
-const blankProduct = (sectionId = "") => ({
-  name: "", description: "", category: "", sectionId, price: "", promotionalPrice: "", imageUrl: "", imagesText: "", isPublished: true,
+const blankProduct = (sectionId = "", typeId = "") => ({
+  name: "", description: "", category: "", typeId, sectionId, price: "", promotionalPrice: "", imageUrl: "", imagesText: "", isPublished: true,
   variants: [blankVariant()]
 });
 
 export default function ProductsPage() {
   const [products, setProducts] = useState([]);
+  const [types, setTypes] = useState([]);
   const [sections, setSections] = useState([]);
   const [error, setError] = useState("");
   const [formError, setFormError] = useState("");
@@ -27,26 +29,30 @@ export default function ProductsPage() {
 
   const load = useCallback(async () => {
     try {
-      const [productResult, sectionResult] = await Promise.all([
+      const [productResult, sectionResult, typeResult] = await Promise.all([
         api("/tenant/products?limit=100"),
-        api("/tenant/sections")
+        api("/tenant/sections"),
+        api("/tenant/product-types")
       ]);
       setProducts(productResult.items);
       setSections(sectionResult.items);
+      setTypes(typeResult.items);
       setError("");
       if (!queryHandled.current) {
         queryHandled.current = true;
         const params = new URLSearchParams(window.location.search);
         const requestedSection = params.get("sectionId") || "";
         setSectionFilter(requestedSection);
+        const selectedSection = sectionResult.items.find((section) => section._id === requestedSection);
+        const requestedType = String(selectedSection?.typeId?._id || selectedSection?.typeId || "");
         if (params.size) window.history.replaceState({}, "", window.location.pathname);
         if (params.get("add") === "1") {
           setEditingId("");
-          setForm(blankProduct(requestedSection));
+          setForm(blankProduct(requestedSection, requestedType));
           setShowForm(true);
         } else if (params.get("productId")) {
           const product = productResult.items.find((item) => item._id === params.get("productId"));
-          if (product) openProductEditor(product, requestedSection);
+          if (product) openProductEditor(product, requestedSection, sectionResult.items);
         }
       }
     } catch (reason) {
@@ -56,13 +62,16 @@ export default function ProductsPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  function openProductEditor(product, preferredSection = "") {
+  function openProductEditor(product, preferredSection = "", availableSections = sections) {
+    const sectionId = preferredSection || product.sectionId?._id || product.sectionId || "";
+    const selectedSection = availableSections.find((section) => section._id === sectionId);
     setEditingId(product._id);
     setForm({
       name: product.name,
       description: product.description || "",
       category: product.category || "",
-      sectionId: preferredSection || product.sectionId?._id || product.sectionId || "",
+      typeId: String(product.sectionId?.typeId || selectedSection?.typeId?._id || selectedSection?.typeId || ""),
+      sectionId,
       price: String(product.price),
       promotionalPrice: product.promotionalPrice == null ? "" : String(product.promotionalPrice),
       imageUrl: product.imageUrl || "",
@@ -101,6 +110,20 @@ export default function ProductsPage() {
     }));
   }
 
+  async function uploadProductImage(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setFormError("");
+    try {
+      const imageUrl = await prepareImage(file, 1600);
+      setForm((current) => ({ ...current, imageUrl }));
+    } catch (reason) {
+      setFormError(reason.message);
+    } finally {
+      event.target.value = "";
+    }
+  }
+
   async function saveProduct(event) {
     event.preventDefault();
     setFormError("");
@@ -110,6 +133,7 @@ export default function ProductsPage() {
       const payload = {
         name: form.name,
         description: form.description,
+        typeId: form.typeId,
         category: sections.find((section) => section._id === form.sectionId)?.name || form.category || "General",
         sectionId: form.sectionId || null,
         price: Number(form.price),
@@ -168,25 +192,32 @@ export default function ProductsPage() {
   }
 
   const visible = products.filter((product) => {
-    const matchesText = `${product.name} ${product.category} ${product.sectionId?.name || ""}`.toLowerCase().includes(search.toLowerCase());
     const productSectionId = product.sectionId?._id || product.sectionId || "";
+    const section = sections.find((item) => item._id === productSectionId);
+    const typeId = String(product.sectionId?.typeId || section?.typeId || "");
+    const typeName = types.find((productType) => productType._id === typeId)?.name || "";
+    const matchesText = `${product.name} ${product.category} ${section?.name || ""} ${typeName}`.toLowerCase().includes(search.toLowerCase());
     return matchesText && (!sectionFilter || productSectionId === sectionFilter);
   });
   const selectedSection = sections.find((section) => section._id === form.sectionId);
+  const sectionsInSelectedType = sections.filter((section) => String(section.typeId?._id || section.typeId || "") === form.typeId);
+  const sectionTypes = new Map(types.map((productType) => [productType._id, productType.name]));
 
   return <div className="page-content tenant-catalog-page">
-    <PageHeader eyebrow="CATALOG & STOCK" title="Products & variants" description="Manage product details, configurable variants, images, publication, and variant-level inventory." actions={<><a className="button subtle" href="/dashboard/sections">Manage sections</a><button className="button primary" onClick={() => { setEditingId(""); setForm(blankProduct(sectionFilter)); setShowForm(!showForm); }}><Plus size={16} /> Add product</button></>} />
+  <PageHeader eyebrow="CATALOG & STOCK" title="Products & variants" description="Manage products within their product type and section, with configurable variants and inventory." actions={<><a className="button subtle" href="/dashboard/product-types">Product types</a><a className="button subtle" href="/dashboard/sections">Manage sections</a><button className="button primary" onClick={() => { const section = sections.find((item) => item._id === sectionFilter); setEditingId(""); setForm(blankProduct(sectionFilter, String(section?.typeId?._id || section?.typeId || ""))); setShowForm(!showForm); }}><Plus size={16} /> Add product</button></>} />
     {notice && <div className="inline-success">{notice}<button onClick={() => setNotice("")} aria-label="Dismiss"><X size={14} /></button></div>}
     {showForm && <Panel title={editingId ? `Edit product${selectedSection ? ` · ${selectedSection.name}` : ""}` : `Create product${selectedSection ? ` · ${selectedSection.name}` : ""}`} className="form-panel">
       <form onSubmit={saveProduct} className="product-form">
         <div className="form-grid">
           <label>Product name<input required minLength="2" maxLength="120" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
-          <label>Product section<select value={form.sectionId} onChange={(event) => setForm({ ...form, sectionId: event.target.value })}><option value="">Unassigned / legacy category</option>{sections.map((section) => <option value={section._id} disabled={!section.active} key={section._id}>{section.name}{section.active ? "" : " (inactive)"}</option>)}</select></label>
+          <label>Product type<select required value={form.typeId} onChange={(event) => setForm({ ...form, typeId: event.target.value, sectionId: "" })}><option value="">Select a product type</option>{types.map((productType) => <option value={productType._id} disabled={!productType.active} key={productType._id}>{productType.name}{productType.active ? "" : " (inactive)"}</option>)}</select></label>
+          <label>Product section<select required value={form.sectionId} disabled={!form.typeId} onChange={(event) => setForm({ ...form, sectionId: event.target.value })}><option value="">Select a section</option>{sectionsInSelectedType.map((section) => <option value={section._id} disabled={!section.active} key={section._id}>{section.name}{section.active ? "" : " (inactive)"}</option>)}</select>{form.typeId && !sectionsInSelectedType.length && <small className="optional-text">Create a section for this type before adding products.</small>}</label>
           <label>Price (USD)<input required type="number" min="0" step="0.01" value={form.price} onChange={(event) => setForm({ ...form, price: event.target.value })} /></label>
           <label>Promotional price (USD) <span className="optional-text">Optional</span><input type="number" min="0" step="0.01" value={form.promotionalPrice} onChange={(event) => setForm({ ...form, promotionalPrice: event.target.value })} /></label>
-          {!form.sectionId && <label>Category<input maxLength="80" value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} placeholder="e.g. Apparel" /></label>}
           <label className="wide-field">Description<textarea rows="2" maxLength="3000" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></label>
-          <label className="wide-field">Primary image URL<input type="url" maxLength="1000" value={form.imageUrl} onChange={(event) => setForm({ ...form, imageUrl: event.target.value })} placeholder="https://…" /></label>
+          <label className="wide-field">Primary image URL<input type="url" maxLength="1000" value={form.imageUrl.startsWith("data:") ? "" : form.imageUrl} onChange={(event) => setForm({ ...form, imageUrl: event.target.value })} placeholder="https://…" /></label>
+          <label className="wide-field"><span className="catalog-image-upload-label"><ImagePlus size={14} /> Or upload a primary image</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={uploadProductImage} /></label>
+          {form.imageUrl && <div className="wide-field catalog-image-preview"><img src={form.imageUrl} alt="Product image preview" /><button type="button" className="text-link" onClick={() => setForm({ ...form, imageUrl: "" })}>Remove image</button></div>}
           <label className="wide-field">Additional product image URLs <span className="optional-text">One URL per line</span><textarea rows="3" maxLength="12000" value={form.imagesText} onChange={(event) => setForm({ ...form, imagesText: event.target.value })} placeholder={"https://example.com/image-front.jpg\nhttps://example.com/image-back.jpg"} /></label>
           <label className="section-active-toggle"><input type="checkbox" checked={form.isPublished} onChange={(event) => setForm({ ...form, isPublished: event.target.checked })} /> Published on public storefront</label>
         </div>
@@ -217,13 +248,14 @@ export default function ProductsPage() {
       </form>
     </Panel>}
     <Panel title={`Your catalog · ${products.length}`} action={<div className="filter-actions"><label className="table-search"><Search size={15} /><input placeholder="Search products" value={search} onChange={(event) => setSearch(event.target.value)} /></label><select value={sectionFilter} onChange={(event) => setSectionFilter(event.target.value)}><option value="">All sections</option>{sections.map((section) => <option value={section._id} key={section._id}>{section.name}</option>)}</select></div>}>
-      {error && !products.length ? <LoadingState error={error} retry={load} /> : <div className="table-wrap"><table><thead><tr><th>PRODUCT</th><th>SECTION</th><th>PRICE</th><th>VARIANTS & STOCK</th><th>STATUS</th><th>ACTIONS</th></tr></thead><tbody>
+      {error && !products.length ? <LoadingState error={error} retry={load} /> : <div className="table-wrap"><table><thead><tr><th>PRODUCT</th><th>PRODUCT TYPE</th><th>SECTION</th><th>PRICE</th><th>VARIANTS & STOCK</th><th>STATUS</th><th>ACTIONS</th></tr></thead><tbody>
         {visible.map((product) => {
           const totalStock = product.variants.reduce((total, variant) => total + variant.stock, 0);
           const sectionName = product.sectionId?.name || product.category || "Unassigned";
-          return <tr key={product._id}><td><div className="business-cell">{(product.imageUrl || product.images?.[0]) ? <img className="product-thumb" src={product.imageUrl || product.images[0]} alt="" /> : <span className="square-logo">PR</span>}<div><b>{product.name}</b><small>{product.variants.length} stock variants</small></div></div></td><td>{sectionName}</td><td><b>{money(product.promotionalPrice ?? product.price)}</b>{product.promotionalPrice != null && <small className="table-subline"><s>{money(product.price)}</s></small>}</td><td>{totalStock} units</td><td><StatusPill tone={product.status === "archived" ? "inactive" : product.isPublished === false ? "pending" : "active"}>{product.status === "archived" ? "archived" : product.isPublished === false ? "draft" : "published"}</StatusPill></td><td><div className="table-row-actions"><button className="button subtle compact" onClick={() => openProductEditor(product)}>Edit</button><button className="button subtle compact" onClick={() => setPublished(product)} disabled={product.status === "archived"}>{product.isPublished === false ? "Publish" : "Unpublish"}</button><button className="icon-button danger-action" title="Archive product" onClick={() => archive(product)} disabled={product.status === "archived"}><Archive size={16} /></button></div></td></tr>;
+          const typeId = String(product.sectionId?.typeId || sections.find((section) => section._id === (product.sectionId?._id || product.sectionId))?.typeId || "");
+          return <tr key={product._id}><td><div className="business-cell">{(product.imageUrl || product.images?.[0]) ? <img className="product-thumb" src={product.imageUrl || product.images[0]} alt="" /> : <span className="square-logo">PR</span>}<div><b>{product.name}</b><small>{product.variants.length} stock variants</small></div></div></td><td>{sectionTypes.get(typeId) || "Unassigned"}</td><td>{sectionName}</td><td><b>{money(product.promotionalPrice ?? product.price)}</b>{product.promotionalPrice != null && <small className="table-subline"><s>{money(product.price)}</s></small>}</td><td>{totalStock} units</td><td><StatusPill tone={product.status === "archived" ? "inactive" : product.isPublished === false ? "pending" : "active"}>{product.status === "archived" ? "archived" : product.isPublished === false ? "draft" : "published"}</StatusPill></td><td><div className="table-row-actions"><button className="button subtle compact" onClick={() => openProductEditor(product)}>Edit</button><button className="button subtle compact" onClick={() => setPublished(product)} disabled={product.status === "archived"}>{product.isPublished === false ? "Publish" : "Unpublish"}</button><button className="icon-button danger-action" title="Archive product" onClick={() => archive(product)} disabled={product.status === "archived"}><Archive size={16} /></button></div></td></tr>;
         })}
-        {!visible.length && <tr><td colSpan="6" className="empty-table">{products.length ? "No products match your search." : "Your catalog is empty. Add a product or start in Product Sections."}</td></tr>}
+        {!visible.length && <tr><td colSpan="7" className="empty-table">{products.length ? "No products match your search." : "Your catalog is empty. Create a product type and section, then add a product."}</td></tr>}
       </tbody></table></div>}
     </Panel>
   </div>;

@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   Activity, BarChart3, Bell, Boxes, BriefcaseBusiness, Building2, ChevronDown,
   CircleHelp, ClipboardList, CreditCard, Grid2X2, LayoutDashboard, LogOut,
-  MessageSquare, Package, Search, Settings, Shield, ShoppingBag, Users, Wallet
+  MessageSquare, Package, Search, Settings, Shield, ShoppingBag, Tags, Users, Wallet
 } from "lucide-react";
 import { api, clearToken } from "../lib/api";
 
@@ -22,7 +22,7 @@ const adminSections = [
 
 const tenantSections = [
   { title: "STORE & OVERVIEW", items: [{ label: "Overview", href: "/dashboard", icon: Grid2X2 }, { label: "Sales Analytics", href: "/dashboard", icon: BarChart3 }] },
-  { title: "CATALOG & STOCK", items: [{ label: "Products & Variants", href: "/dashboard/products", icon: Package }, { label: "Product Sections", href: "/dashboard/sections", icon: Boxes }] },
+  { title: "CATALOG & STOCK", items: [{ label: "Products & Variants", href: "/dashboard/products", icon: Package }, { label: "Product Types", href: "/dashboard/product-types", icon: Tags }, { label: "Product Sections", href: "/dashboard/sections", icon: Boxes }] },
   { title: "COMMERCE OPERATIONS", items: [{ label: "Orders & Fulfillment", href: "/dashboard/orders", icon: ShoppingBag }, { label: "Customers", href: "/dashboard/customers", icon: Users }, { label: "Payment Activity", href: "/dashboard/payments", icon: CreditCard }] },
   { title: "COMMUNICATIONS", items: [{ label: "Order Chat", href: "/dashboard/order-chat", icon: MessageSquare }, { label: "Customer Support / Chat", href: "/dashboard/chat", icon: CircleHelp }] },
   { title: "STOREFRONT", items: [{ label: "Storefront Management", href: "/dashboard/settings", icon: BriefcaseBusiness }] },

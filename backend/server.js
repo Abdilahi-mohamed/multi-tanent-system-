@@ -2,6 +2,7 @@ import "dotenv/config";
 import mongoose from "mongoose";
 import { createConnection } from "node:net";
 import app from "./src/app.js";
+import { ProductSection } from "./src/models.js";
 import { configureMongoDns } from "./src/mongodb-dns.js";
 import { getActivePaymentCredentialKeyId } from "./src/payment-credentials.js";
 
@@ -57,6 +58,16 @@ getActivePaymentCredentialKeyId();
 
 configureMongoDns();
 await mongoose.connect(mongoUri);
+await ProductSection.createIndexes();
+const sectionIndexes = await ProductSection.collection.indexes();
+const obsoleteSectionNameIndex = sectionIndexes.find((index) => index.name === "tenantId_1_name_1");
+if (obsoleteSectionNameIndex) {
+  try {
+    await ProductSection.collection.dropIndex(obsoleteSectionNameIndex.name);
+  } catch (error) {
+    if (error.code !== 27) throw error;
+  }
+}
 const server = app.listen(port, () => {
   console.log(`Aura API listening on port ${port}`);
 });
