@@ -1,3 +1,4 @@
+
 {
   "name": "aura-multitenant-commerce",
   "version": "1.0.0",
@@ -7,6 +8,7 @@
     "web": "node web.cjs",
     "build": "npm run build --prefix frontend",
     "start": "npm start --prefix backend",
+    "postinstall": "npm install --prefix backend",
     "test": "npm test --prefix backend"
   },
   "devDependencies": {
