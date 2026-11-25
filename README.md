@@ -12,6 +12,37 @@ The shared interface follows the requested palette: navy `#0F172A`, blue `#2563E
 - Node.js 20.9+
 - MongoDB 6+ (local or hosted)
 
+## Deploying on Render
+
+This repository contains two apps, so deploy them as separate Render **Web Services** from the same Git repository. Select the `Node` runtime for both services.
+
+### Backend API
+
+- **Root Directory:** `backend`
+- **Build Command:** `npm ci`
+- **Start Command:** `npm start`
+- **Health Check Path:** `/api/health`
+
+Set these backend environment variables in Render:
+
+- `NODE_ENV` = `production`
+- `MONGODB_URI` = your hosted MongoDB connection string
+- `JWT_SECRET` = a random secret of at least 32 characters
+- `PAYMENT_CREDENTIAL_ENCRYPTION_KEY` = a separate random secret of at least 32 bytes
+- `CLIENT_ORIGIN` = the frontend's Render origin, for example `https://your-frontend.onrender.com`
+
+Render supplies `PORT` automatically. Keep the secrets in Render's environment settings; do not commit them.
+
+### Frontend
+
+- **Root Directory:** `frontend`
+- **Build Command:** `npm ci && npm run build`
+- **Start Command:** `npm start`
+
+Set `NEXT_PUBLIC_API_URL` to the backend's public URL plus `/api`, for example `https://your-api.onrender.com/api`. If using Google sign-in, also set `NEXT_PUBLIC_GOOGLE_CLIENT_ID` here.
+
+Deploy the backend first and use its URL when configuring the frontend. After the frontend is deployed, set the backend's `CLIENT_ORIGIN` to the frontend's exact HTTPS origin and redeploy the backend. For Google sign-in, configure the backend's `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_OAUTH_REDIRECT_URI` (`https://your-api.onrender.com/api/auth/google/callback`), and register that exact callback URL with Google.
+
 ## Local setup
 
 1. Copy `backend/.env.example` to `backend/.env`. Set `MONGODB_URI`, provide a random `JWT_SECRET` of at least 32 characters, and set `PAYMENT_CREDENTIAL_ENCRYPTION_KEY` to a separate high-entropy secret of at least 32 bytes. Keep this key only in the backend environment or a secrets manager; stored payment credentials cannot be decrypted without it. Set `SEED_DEMO_PASSWORD` to a password with 12 or more characters. If Node cannot resolve Atlas SRV records on your network, set `MONGODB_DNS_SERVERS` to a reachable DNS server IP.
