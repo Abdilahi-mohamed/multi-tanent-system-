@@ -6,7 +6,6 @@ import {
   ArrowRight,
   ArrowUpRight,
   BarChart3,
-  Bell,
   Boxes,
   BriefcaseBusiness,
   Check,
@@ -22,7 +21,6 @@ import {
   MessageCircle,
   Package,
   PackagePlus,
-  Search,
   ShieldCheck,
   Shirt,
   ShoppingBag,
@@ -100,59 +98,6 @@ function Brand({ footer = false }) {
   );
 }
 
-function DashboardPreview() {
-  return (
-    <div className="dashboard-window" aria-label="Illustrative Vendora business dashboard preview">
-      <aside className="dashboard-rail">
-        <Image src="/vendora-brand-mark.png" alt="" width={31} height={31} />
-        <span className="rail-active"><LayoutDashboard size={16} /></span>
-        <span><Package size={16} /></span>
-        <span><ClipboardList size={16} /></span>
-        <span><Users size={16} /></span>
-        <span className="rail-bottom"><LockKeyhole size={15} /></span>
-      </aside>
-      <div className="dashboard-content">
-        <div className="dashboard-topbar">
-          <div className="dashboard-breadcrumb">Workspace <span>/</span> <b>Overview</b></div>
-          <div className="dashboard-top-actions"><span><Search size={14} /></span><span className="dashboard-notice"><Bell size={14} /></span><i>MY</i></div>
-        </div>
-        <div className="dashboard-inner">
-          <div className="dashboard-heading">
-            <div><small>BUSINESS OVERVIEW</small><h2>Your business at a glance</h2><p>A clear view of the work that keeps your store moving.</p></div>
-            <span className="preview-status"><span /> Workspace preview</span>
-          </div>
-          <div className="dashboard-metrics">
-            <div className="dashboard-metric"><span>Total sales <WalletCards size={15} /></span><strong>—</strong><small>Sales will appear here</small></div>
-            <div className="dashboard-metric"><span>Total orders <ClipboardList size={15} /></span><strong>—</strong><small>Orders will appear here</small></div>
-            <div className="dashboard-metric"><span>Products <Package size={15} /></span><strong>—</strong><small>Manage your catalog</small></div>
-            <div className="dashboard-metric"><span>Inventory <Boxes size={15} /></span><strong>—</strong><small>Keep stock in view</small></div>
-          </div>
-          <div className="dashboard-panels">
-            <section className="dashboard-panel analytics-panel">
-              <div className="dashboard-panel-heading"><span><b>Sales analytics</b><small>Your business activity, over time</small></span><span className="period-select">Last 30 days <ChevronDown size={12} /></span></div>
-              <div className="chart-area">
-                <div className="chart-labels"><span>Sales</span><span>Orders</span></div>
-                <svg viewBox="0 0 500 128" role="img" aria-label="Illustrative sales activity chart without sample values">
-                  <path d="M0 26H500M0 59H500M0 92H500M0 125H500" />
-                  <path className="chart-fill" d="M0 99 C38 92 44 66 83 75 S132 86 166 57 S215 73 250 53 S297 63 333 39 S379 58 416 32 S462 42 500 17 V128 H0Z" />
-                  <path className="chart-line" d="M0 99 C38 92 44 66 83 75 S132 86 166 57 S215 73 250 53 S297 63 333 39 S379 58 416 32 S462 42 500 17" />
-                  <path className="chart-line-alt" d="M0 111 C37 103 53 108 83 95 S137 101 166 87 S217 91 250 79 S298 86 333 70 S379 76 416 61 S468 64 500 53" />
-                </svg>
-                <div className="chart-months"><span>Start</span><span>Activity</span><span>Today</span></div>
-              </div>
-            </section>
-            <section className="dashboard-panel activity-panel">
-              <div className="dashboard-panel-heading"><span><b>Recent activity</b><small>Updates from your workspace</small></span><ArrowUpRight size={15} /></div>
-              <div className="activity-empty"><span><Activity size={17} /></span><b>Your activity, all together</b><small>Orders and updates will show here as your business gets moving.</small></div>
-            </section>
-          </div>
-          <div className="dashboard-bottom-note"><ShieldCheck size={14} /> Your business data stays within your workspace.</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function StorefrontPreview() {
   const products = [
     { title: "Everyday tote", price: "$36", oldPrice: "$48", icon: ShoppingBag, className: "art-tote", label: "Bestseller" },
@@ -226,12 +171,6 @@ export default function Home() {
             <a className="landing-button landing-button-quiet" href="#features">Explore features <ArrowDownRight size={16} /></a>
           </div>
           <div className="hero-assurance"><span><Check size={13} /></span> Independent workspace for every business <i /> <span><Check size={13} /></span> Your store, ready to share</div>
-        </div>
-        <div className="hero-visual">
-          <div className="hero-visual-glow" aria-hidden="true" />
-          <div className="dashboard-caption"><span className="caption-dot" /> A clearer view of your business</div>
-          <DashboardPreview />
-          <div className="floating-insight"><span><TrendingUp size={16} /></span><div><b>Built around your business</b><small>Products · orders · customers</small></div></div>
         </div>
         <a className="hero-scroll" href="#solutions"><span /> Built for the way you do business <ArrowRight size={14} /></a>
       </section>
